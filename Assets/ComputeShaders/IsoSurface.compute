@@ -1,0 +1,19 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel MarchingCubes
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+Texture3D<half> noiseTexture;
+SamplerState samplernoiseTexture;
+
+AppendStructuredBuffer<float3> vertices;
+AppendStructuredBuffer<int> triangles;
+
+[numthreads(8,8,8)]
+void MarchingCubes (uint3 id : SV_DispatchThreadID)
+{
+	float noise = noiseTexture.Sample(samplernoiseTexture, id);
+
+	// TODO
+	vertices.Append(float3(1, 2, 3));
+}
