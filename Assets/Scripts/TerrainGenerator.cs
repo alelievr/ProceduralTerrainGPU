@@ -30,11 +30,12 @@ public class TerrainGenerator : MonoBehaviour
 	int						marchingCubeKernel;
 	Vector3Int				marchingCubeKernelGroupSize;
 
-	[HideInInspector]
-	public RenderTexture	noiseTexture;
+	RenderTexture			noiseTexture;
+	RenderTexture			debugTexture;
 
 	ComputeBuffer			verticesBuffer;
 	ComputeBuffer			trianglesBuffer;
+	ComputeBuffer			counterBuffer;
 
 	public void Start ()
 	{
@@ -49,11 +50,14 @@ public class TerrainGenerator : MonoBehaviour
 
 		// Bind marching cubes parameters:
 		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.noiseTextureId, noiseTexture);
+		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.debugTextureId, debugTexture);
 		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.verticesId, verticesBuffer);
 		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.trianglesId, trianglesBuffer);
+		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.triangleCounterId, counterBuffer);
+		isoSurfaceShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
 	
 		// Bind debug parameters:
-		visualize3DNoiseMaterial.SetTexture("_NoiseTex", noiseTexture);
+		visualize3DNoiseMaterial.SetTexture("_NoiseTex", debugTexture);
 
 		GenerateTerrain();
 	}
@@ -65,12 +69,23 @@ public class TerrainGenerator : MonoBehaviour
 		noiseTexture.dimension = TextureDimension.Tex3D;
 		noiseTexture.enableRandomWrite = true;
 		noiseTexture.volumeDepth = size;
+		noiseTexture.filterMode = FilterMode.Point;
 		noiseTexture.Create();
+		
+		// Create the debug texture
+		debugTexture = new RenderTexture(size, size, size, GraphicsFormat.R16_SFloat);
+		debugTexture.dimension = TextureDimension.Tex3D;
+		debugTexture.enableRandomWrite = true;
+		debugTexture.volumeDepth = size;
+		debugTexture.filterMode = FilterMode.Point;
+		debugTexture.Create();
 
 		// Create the computeBuffer that will store vertices and indices for draw procedural
 		verticesBuffer = new ComputeBuffer(size * size * size * 5, sizeof(float) * 3, ComputeBufferType.Append);
-		// the maximum number of triangles is 5 times the number of volxel (with the marching cubes algorithm)
+		// The maximum number of triangles is 5 times the number of volxel (with the marching cubes algorithm)
 		trianglesBuffer = new ComputeBuffer(size * size * size * 5, sizeof(float) * 3, ComputeBufferType.Append);
+		// A buffer to generate the triangle indicies and keep track of the number of triangles from compute shader
+		counterBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Counter);
 	}
 
 	int FindKernel(string kernelName, out Vector3Int size)
@@ -88,6 +103,10 @@ public class TerrainGenerator : MonoBehaviour
 	{
 		Stopwatch sw = new Stopwatch();
 		sw.Start();
+
+		verticesBuffer.SetCounterValue(0);
+		trianglesBuffer.SetCounterValue(0);
+		counterBuffer.SetCounterValue(0);
 		
 		// 3D noise generation
 		terrain3DNoiseShader.Dispatch(noiseKernel, size / noiseKernelGroupSize.x, size / noiseKernelGroupSize.y, size / noiseKernelGroupSize.z);
@@ -95,13 +114,19 @@ public class TerrainGenerator : MonoBehaviour
 		// Isosurface generation
 		isoSurfaceShader.Dispatch(marchingCubeKernel, size / marchingCubeKernelGroupSize.x, size / marchingCubeKernelGroupSize.y, size / marchingCubeKernelGroupSize.z);
 		
-		Vector3[] a = new Vector3[size * size * size];
+		Vector3[] a = new Vector3[size * size * size * 5];
 		verticesBuffer.GetData(a);
-		
-		Debug.Log("a: " + a[2]);
+
+		int[] t = new int[size * size * size * 5];
+		trianglesBuffer.GetData(t);
+
+		for (int i = 0; i < 1024; i++)
+			Debug.Log("t: " + t[i] + ", a: " + a[i]);
 
 		sw.Stop();
 		Debug.Log("3D noise generated in " + sw.Elapsed.TotalMilliseconds + " ms");
+
+		Release();
 	}
 	
 	void Update ()
@@ -109,10 +134,10 @@ public class TerrainGenerator : MonoBehaviour
 		
 	}
 
-	private void OnDisable()
+	private void Release()
 	{
+		counterBuffer.Release();
 		verticesBuffer.Release();
 		trianglesBuffer.Release();
-		noiseTexture.Release();
 	}
 }

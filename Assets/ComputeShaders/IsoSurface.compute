@@ -1,19 +1,84 @@
-﻿// Each #kernel tells which function to compile; you can have many kernels
+﻿// Marching cubes algorithm from https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch01.html
+
 #pragma kernel MarchingCubes
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-Texture3D<half> noiseTexture;
-SamplerState samplernoiseTexture;
+#include "CoreRP/ShaderLibrary/Common.hlsl"
+
+Texture3D<half> _NoiseTexture;
+SamplerState sampler_NoiseTexture;
+float3 chunkSize;
+
+RWTexture3D<half> _DebugOutput;
 
 AppendStructuredBuffer<float3> vertices;
 AppendStructuredBuffer<int> triangles;
+RWStructuredBuffer<int> triangleCounter;
+
+float3 PlaceVerticeOnEdge(float3 voxelPosition, float4 f0123, float4 f4567, int edgeNum)
+{
+	// TODO: WTF ???
+	#include "MarchingCubeConstants.hlsl"
+
+	float str0 = dot(cornerAmask0123[edgeNum], f0123) +
+	dot(cornerAmask4567[edgeNum], f4567);
+	float str1 = dot(cornerBmask0123[edgeNum], f0123) +
+	dot(cornerBmask4567[edgeNum], f4567);
+	float t = saturate( str0/(str0 - str1) );
+
+	float3 posCell = EdgeStart[edgeNum] + t * EdgeDir[edgeNum];
+	float3 wsPos = voxelPosition + posCell * chunkSize;
+
+	return wsPos;	
+}
 
 [numthreads(8,8,8)]
 void MarchingCubes (uint3 id : SV_DispatchThreadID)
 {
-	float noise = noiseTexture.Sample(samplernoiseTexture, id);
+	// TODO: WTF ???
+	#include "MarchingCubeConstants.hlsl"
+	
+	float3 voxelPosition = id;
+	float2 step = float2(1 / chunkSize.x, 0);
+	float3 voxelUVW = voxelPosition / chunkSize;
 
-	// TODO
-	vertices.Append(float3(1, 2, 3));
+	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yyy, 0);
+
+	float4 f0123 = float4(
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yyy, 0).x,
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yyx, 0).x,
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.xyx, 0).x,
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.xyy, 0).x
+	);
+	
+	float4 f4567 = float4(
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yxy, 0).x,
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yxx, 0).x,
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.xxx, 0).x,
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.xxy, 0).x
+	);
+
+	uint4 n0123 = (uint4)saturate(f0123 * 99999);
+	uint4 n4567 = (uint4)saturate(f4567 * 99999);
+	uint mc_case = (n0123.x     ) | (n0123.y << 1) | (n0123.z << 2) | (n0123.w << 3)
+				 | (n4567.x << 4) | (n4567.y << 5) | (n4567.z << 6) | (n4567.w << 7);
+
+	uint num_polys = case_to_numpolys[mc_case];
+	uint table_pos = mc_case * 5;
+
+	vertices.Append(float3(mc_case, case_to_numpolys[3].x, table_pos));
+
+	for (uint p = 0; p < num_polys; p++)
+	{
+		// TODO: this may not be the best way to do geometry generation
+		int3 polydata = triTable[table_pos++];
+		vertices.Append(PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.x));
+		vertices.Append(PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.y));
+		vertices.Append(PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.z));
+
+		int triangleIndex = (triangleCounter.IncrementCounter() - 1) * 3;
+
+		triangles.Append(triangleIndex + 0);
+		triangles.Append(triangleIndex + 1);
+		triangles.Append(triangleIndex + 2);
+	}
 }

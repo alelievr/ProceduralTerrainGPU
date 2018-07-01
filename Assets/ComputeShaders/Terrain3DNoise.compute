@@ -1,9 +1,8 @@
-﻿// Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel PerlinNoise3D
+﻿#pragma kernel PerlinNoise3D
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-RWTexture3D<half> noiseTexture;
+#include "CoreRP/ShaderLibrary/Common.hlsl"
+
+RWTexture3D<half> _NoiseTexture;
 float3 chunkPosition;
 
 
@@ -39,10 +38,10 @@ float fbm(float3 p) {
 void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 {
 	float3 chunkSize;
-	noiseTexture.GetDimensions(chunkSize.x, chunkSize.y, chunkSize.z);
+	_NoiseTexture.GetDimensions(chunkSize.x, chunkSize.y, chunkSize.z);
 
 	float3 worldNoisePosition = float3(id) / chunkSize + chunkPosition;
 
 	// Substract 0.5 to generate negative numbers
-	noiseTexture[id.xyz] = fbm(worldNoisePosition * 50) - 0.5;
+	_NoiseTexture[id.xyz] = fbm(worldNoisePosition * 50) - 0.5;
 }
