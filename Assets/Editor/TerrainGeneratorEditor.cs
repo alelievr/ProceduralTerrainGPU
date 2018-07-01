@@ -11,6 +11,7 @@ public class TerrainGeneratorEditor : Editor
 	private void OnEnable()
 	{
 		terrainGenerator = target as TerrainGenerator;
+		EditorApplication.update += terrainGenerator.Update;
 	}
 
 	public override void OnInspectorGUI()

@@ -3,6 +3,7 @@
 #pragma kernel MarchingCubes
 
 #include "CoreRP/ShaderLibrary/Common.hlsl"
+#include "MarchingCubeConstants.hlsl"
 
 Texture3D<half> _NoiseTexture;
 SamplerState sampler_NoiseTexture;
@@ -10,33 +11,25 @@ float3 chunkSize;
 
 RWTexture3D<half> _DebugOutput;
 
-AppendStructuredBuffer<float3> vertices;
-AppendStructuredBuffer<int> triangles;
+RWStructuredBuffer<float3> vertices;
+RWStructuredBuffer<int> triangles;
 RWStructuredBuffer<int> triangleCounter;
 
 float3 PlaceVerticeOnEdge(float3 voxelPosition, float4 f0123, float4 f4567, int edgeNum)
 {
-	// TODO: WTF ???
-	#include "MarchingCubeConstants.hlsl"
+	float str0 = dot(GetCornerAmask0123(edgeNum), f0123) + dot(GetCornerAmask4567(edgeNum), f4567);
+	float str1 = dot(GetCornerBmask0123(edgeNum), f0123) + dot(GetCornerBmask4567(edgeNum), f4567);
+	float t = saturate(str0 / (str0 - str1));
 
-	float str0 = dot(cornerAmask0123[edgeNum], f0123) +
-	dot(cornerAmask4567[edgeNum], f4567);
-	float str1 = dot(cornerBmask0123[edgeNum], f0123) +
-	dot(cornerBmask4567[edgeNum], f4567);
-	float t = saturate( str0/(str0 - str1) );
-
-	float3 posCell = EdgeStart[edgeNum] + t * EdgeDir[edgeNum];
+	float3 posCell = GetEdgeStart(edgeNum) + t * GetEdgeDir(edgeNum);
 	float3 wsPos = voxelPosition + posCell * chunkSize;
 
-	return wsPos;	
+	return wsPos;
 }
 
-[numthreads(8,8,8)]
+[numthreads(1,1,1)]
 void MarchingCubes (uint3 id : SV_DispatchThreadID)
 {
-	// TODO: WTF ???
-	#include "MarchingCubeConstants.hlsl"
-	
 	float3 voxelPosition = id;
 	float2 step = float2(1 / chunkSize.x, 0);
 	float3 voxelUVW = voxelPosition / chunkSize;
@@ -62,23 +55,60 @@ void MarchingCubes (uint3 id : SV_DispatchThreadID)
 	uint mc_case = (n0123.x     ) | (n0123.y << 1) | (n0123.z << 2) | (n0123.w << 3)
 				 | (n4567.x << 4) | (n4567.y << 5) | (n4567.z << 6) | (n4567.w << 7);
 
-	uint num_polys = case_to_numpolys[mc_case];
+	uint num_polys = GetCaseToNumpolys(mc_case);
 	uint table_pos = mc_case * 5;
 
-	vertices.Append(float3(mc_case, case_to_numpolys[3].x, table_pos));
+#if 1
 
 	for (uint p = 0; p < num_polys; p++)
 	{
 		// TODO: this may not be the best way to do geometry generation
-		int3 polydata = triTable[table_pos++];
-		vertices.Append(PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.x));
-		vertices.Append(PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.y));
-		vertices.Append(PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.z));
+		int3 polydata = GetTriTable(table_pos++);
 
-		int triangleIndex = (triangleCounter.IncrementCounter() - 1) * 3;
+		int triangleCount = triangleCounter.IncrementCounter() * 3;
+		
+		vertices[triangleCount + 0] = PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.x);
+		vertices[triangleCount + 1] = PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.y);
+		vertices[triangleCount + 2] = PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.z);
 
-		triangles.Append(triangleIndex + 0);
-		triangles.Append(triangleIndex + 1);
-		triangles.Append(triangleIndex + 2);
+		triangles[triangleCount + 0] = triangleCount + 0;
+		triangles[triangleCount + 1] = triangleCount + 1;
+		triangles[triangleCount + 2] = triangleCount + 2;
 	}
+
+#else
+
+	/*
+	Triangle:
+	p4  p3
+	| / |
+	p1--p2
+	*/
+	
+	int triangleCount = triangleCounter.IncrementCounter() * 3;
+
+	float3 p1 = float3(0, 0, 0) + id;
+	float3 p2 = float3(1, 0, 0) + id;
+	float3 p3 = float3(1, 1, 0) + id;
+	float3 p4 = float3(0, 1, 0) + id;
+
+	vertices[triangleCount + 0] = (p1);
+	vertices[triangleCount + 1] = (p2);
+	vertices[triangleCount + 2] = (p3);
+	
+	triangles[triangleCount + 0] = triangleCount + 0;
+	triangles[triangleCount + 1] = triangleCount + 1;
+	triangles[triangleCount + 2] = triangleCount + 2;
+
+	triangleCount = triangleCounter.IncrementCounter() * 3;
+
+	vertices[triangleCount + 0] = (p1);
+	vertices[triangleCount + 1] = (p3);
+	vertices[triangleCount + 2] = (p4);
+	
+	triangles[triangleCount + 0] = triangleCount + 0;
+	triangles[triangleCount + 1] = triangleCount + 1;
+	triangles[triangleCount + 2] = triangleCount + 2;
+
+#endif
 }

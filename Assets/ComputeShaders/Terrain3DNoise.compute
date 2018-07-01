@@ -4,6 +4,7 @@
 
 RWTexture3D<half> _NoiseTexture;
 float3 chunkPosition;
+float3 chunkSize;
 
 
 float hash(float h) {
@@ -34,14 +35,11 @@ float fbm(float3 p) {
 	return f;
 }
 
-[numthreads(8, 8, 8)]
+[numthreads(1, 1, 1)]
 void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 {
-	float3 chunkSize;
-	_NoiseTexture.GetDimensions(chunkSize.x, chunkSize.y, chunkSize.z);
-
 	float3 worldNoisePosition = float3(id) / chunkSize + chunkPosition;
 
 	// Substract 0.5 to generate negative numbers
-	_NoiseTexture[id.xyz] = fbm(worldNoisePosition * 50) - 0.5;
+	_NoiseTexture[id.xyz] = fbm(worldNoisePosition * 10) - 0.5;
 }

@@ -7,6 +7,7 @@ using System.Diagnostics;
 
 using Debug = UnityEngine.Debug;
 
+[ExecuteInEditMode]
 public class TerrainGenerator : MonoBehaviour
 {
 	[Header("Compute shaders")]
@@ -21,9 +22,14 @@ public class TerrainGenerator : MonoBehaviour
 	public float			scale = 1;
 	public float			persistance = 1.2f;
 	public float			lacunarity = 1.6f;
+
+	[Space, Header("Terrain material")]
+	public Material			terrainMaterial;
 	
 	[Space, Header("Debug")]
 	public Material			visualize3DNoiseMaterial;
+	public Mesh				generatedMesh;
+	public MeshRenderer		debugMeshRenderer;
 
 	int						noiseKernel;
 	Vector3Int				noiseKernelGroupSize;
@@ -37,8 +43,14 @@ public class TerrainGenerator : MonoBehaviour
 	ComputeBuffer			trianglesBuffer;
 	ComputeBuffer			counterBuffer;
 
+	ComputeBuffer			drawBuffer;
+
+	[System.NonSerialized]
+	bool					displayTerrain = false;
+
 	public void Start ()
 	{
+		displayTerrain = false;
 		noiseKernel = FindKernel(KernelIds.perlinNoise3DKernel, out noiseKernelGroupSize);
 		marchingCubeKernel = FindKernel(KernelIds.marchingCubeKernel, out marchingCubeKernelGroupSize);
 
@@ -47,6 +59,7 @@ public class TerrainGenerator : MonoBehaviour
 		// Bind noise kernel parameters:
 		terrain3DNoiseShader.SetTexture(noiseKernel, KernelIds.noiseTextureId, noiseTexture);
 		terrain3DNoiseShader.SetVector(KernelIds.chunkPositionId, Vector4.zero);
+		terrain3DNoiseShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
 
 		// Bind marching cubes parameters:
 		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.noiseTextureId, noiseTexture);
@@ -81,11 +94,13 @@ public class TerrainGenerator : MonoBehaviour
 		debugTexture.Create();
 
 		// Create the computeBuffer that will store vertices and indices for draw procedural
-		verticesBuffer = new ComputeBuffer(size * size * size * 5, sizeof(float) * 3, ComputeBufferType.Append);
+		verticesBuffer = new ComputeBuffer(size * size * size * 15, sizeof(float) * 3, ComputeBufferType.Default);
 		// The maximum number of triangles is 5 times the number of volxel (with the marching cubes algorithm)
-		trianglesBuffer = new ComputeBuffer(size * size * size * 5, sizeof(float) * 3, ComputeBufferType.Append);
+		trianglesBuffer = new ComputeBuffer(size * size * size * 5, sizeof(float) * 3, ComputeBufferType.Default);
 		// A buffer to generate the triangle indicies and keep track of the number of triangles from compute shader
 		counterBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Counter);
+
+		drawBuffer = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
 	}
 
 	int FindKernel(string kernelName, out Vector3Int size)
@@ -101,6 +116,7 @@ public class TerrainGenerator : MonoBehaviour
 
 	public void GenerateTerrain()
 	{
+		displayTerrain = false;
 		Stopwatch sw = new Stopwatch();
 		sw.Start();
 
@@ -113,25 +129,63 @@ public class TerrainGenerator : MonoBehaviour
 
 		// Isosurface generation
 		isoSurfaceShader.Dispatch(marchingCubeKernel, size / marchingCubeKernelGroupSize.x, size / marchingCubeKernelGroupSize.y, size / marchingCubeKernelGroupSize.z);
+
+		int[] drawBufferData = {0, 1, 0, 0};
+		drawBuffer.SetData(drawBufferData);
+		ComputeBuffer.CopyCount(verticesBuffer, drawBuffer, 0);
+
+		ComputeBuffer tmp = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
+		ComputeBuffer.CopyCount(counterBuffer, tmp, 0);
 		
-		Vector3[] a = new Vector3[size * size * size * 5];
+		int[] c = new int[1];
+		tmp.GetData(c);
+		Debug.Log("Counter: " + c[0]);
+		
+		Vector3[] a = new Vector3[c[0] * 3];
 		verticesBuffer.GetData(a);
 
-		int[] t = new int[size * size * size * 5];
+		int[] t = new int[c[0] * 3];
 		trianglesBuffer.GetData(t);
 
-		for (int i = 0; i < 1024; i++)
-			Debug.Log("t: " + t[i] + ", a: " + a[i]);
+		// for (int i = 0; i < c[0]; i++)
+		// {
+		// 	t[i] = i;
+		// }
 
+		generatedMesh = new Mesh();
+		generatedMesh.vertices = a;
+		generatedMesh.triangles = t;
+
+		debugMeshRenderer.GetComponent< MeshFilter >().sharedMesh = generatedMesh;
+		
 		sw.Stop();
 		Debug.Log("3D noise generated in " + sw.Elapsed.TotalMilliseconds + " ms");
 
-		Release();
+		displayTerrain = true;
 	}
+
+	int i = 0;
 	
-	void Update ()
+	public void Update ()
 	{
-		
+		i++;
+
+		if (displayTerrain)
+		{
+			terrainMaterial.SetPass(0);
+			Graphics.DrawProceduralIndirect(MeshTopology.Triangles, drawBuffer, 0);
+
+			if (i == 500)
+			{
+				displayTerrain = false;
+				i = 0;
+			}
+		}
+	}
+
+	private void OnDestroy()
+	{
+		Release();
 	}
 
 	private void Release()
