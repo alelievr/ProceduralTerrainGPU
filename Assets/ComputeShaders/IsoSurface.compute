@@ -24,11 +24,13 @@ float3 PlaceVerticeOnEdge(float3 voxelPosition, float4 f0123, float4 f4567, int 
 	float3 posCell = GetEdgeStart(edgeNum) + t * GetEdgeDir(edgeNum);
 	float3 wsPos = voxelPosition + posCell * chunkSize;
 
+	return posCell;
+
 	return wsPos;
 }
 
 [numthreads(1,1,1)]
-void MarchingCubes (uint3 id : SV_DispatchThreadID)
+void MarchingCubes(uint3 id : SV_DispatchThreadID)
 {
 	float3 voxelPosition = id;
 	float2 step = float2(1 / chunkSize.x, 0);

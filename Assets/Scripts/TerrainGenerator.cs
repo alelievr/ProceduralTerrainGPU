@@ -78,7 +78,7 @@ public class TerrainGenerator : MonoBehaviour
 	void GenerateBuffers()
 	{
 		// Create the noise texture
-		noiseTexture = new RenderTexture(size, size, size, GraphicsFormat.R16_SFloat);
+		noiseTexture = new RenderTexture(size, size, 0, GraphicsFormat.R16_SFloat);
 		noiseTexture.dimension = TextureDimension.Tex3D;
 		noiseTexture.enableRandomWrite = true;
 		noiseTexture.volumeDepth = size;
@@ -86,7 +86,7 @@ public class TerrainGenerator : MonoBehaviour
 		noiseTexture.Create();
 		
 		// Create the debug texture
-		debugTexture = new RenderTexture(size, size, size, GraphicsFormat.R16_SFloat);
+		debugTexture = new RenderTexture(size, size, 0, GraphicsFormat.R16_SFloat);
 		debugTexture.dimension = TextureDimension.Tex3D;
 		debugTexture.enableRandomWrite = true;
 		debugTexture.volumeDepth = size;
@@ -146,11 +146,6 @@ public class TerrainGenerator : MonoBehaviour
 
 		int[] t = new int[c[0] * 3];
 		trianglesBuffer.GetData(t);
-
-		// for (int i = 0; i < c[0]; i++)
-		// {
-		// 	t[i] = i;
-		// }
 
 		generatedMesh = new Mesh();
 		generatedMesh.vertices = a;
