@@ -3,9 +3,13 @@
 #include "CoreRP/ShaderLibrary/Common.hlsl"
 
 RWTexture3D<half> _NoiseTexture;
-float3 chunkPosition;
-float3 chunkSize;
 
+cbuffer noiseSettings
+{
+	float3 chunkPosition;
+	float3 chunkSize;
+	float seed;
+}
 
 float hash(float h) {
 	return frac(sin(h) * 43758.5453123);
@@ -41,5 +45,5 @@ void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 	float3 worldNoisePosition = float3(id) / chunkSize + chunkPosition;
 
 	// Substract 0.5 to generate negative numbers
-	_NoiseTexture[id.xyz] = fbm(worldNoisePosition * 10) - 0.5;
+	_NoiseTexture[id.xyz] = fbm(worldNoisePosition * 4 + seed * float3(55.485615, -534.6543684, 6.465342)) * 2 - 1;
 }

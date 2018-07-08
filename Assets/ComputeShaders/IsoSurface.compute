@@ -24,93 +24,123 @@ float3 PlaceVerticeOnEdge(float3 voxelPosition, float4 f0123, float4 f4567, int 
 	float3 posCell = GetEdgeStart(edgeNum) + t * GetEdgeDir(edgeNum);
 	float3 wsPos = voxelPosition + posCell * chunkSize;
 
-	return posCell;
-
 	return wsPos;
+}
+
+static float _Target = 0;
+static float _Border = 0;
+
+static int2 edgeConnection[12] =
+{
+	int2(0,1), int2(1,2), int2(2,3), int2(3,0), int2(4,5), int2(5,6), int2(6,7), int2(7,4), int2(0,4), int2(1,5), int2(2,6), int2(3,7)
+};
+
+// edgeDirection lists the direction vector (vertex1-vertex0) for each edge in the cube
+static float3 edgeDirection[12] =
+{
+	float3(1.0f, 0.0f, 0.0f),float3(0.0f, 1.0f, 0.0f),float3(-1.0f, 0.0f, 0.0f),float3(0.0f, -1.0f, 0.0f),
+	float3(1.0f, 0.0f, 0.0f),float3(0.0f, 1.0f, 0.0f),float3(-1.0f, 0.0f, 0.0f),float3(0.0f, -1.0f, 0.0f),
+	float3(0.0f, 0.0f, 1.0f),float3(0.0f, 0.0f, 1.0f),float3(0.0f, 0.0f, 1.0f),float3(0.0f,  0.0f, 1.0f)
+};
+
+// vertexOffset lists the positions, relative to vertex0, of each of the 8 vertices of a cube
+static float3 vertexOffset[8] =
+{
+	float3(0, 0, 0),float3(1, 0, 0),float3(1, 1, 0),float3(0, 1, 0),
+	float3(0, 0, 1),float3(1, 0, 1),float3(1, 1, 1),float3(0, 1, 1)
+};
+
+void FillCube(int x, int y, int z, out float cube[8])
+{
+	cube[0] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, y, z) / chunkSize, 0);
+	cube[1] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((x + 1), y, z) / chunkSize, 0);
+	cube[2] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((x + 1), (y + 1), z) / chunkSize, 0);
+	cube[3] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, (y + 1), z) / chunkSize, 0);
+
+	cube[4] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, y, (z + 1)) / chunkSize, 0);
+	cube[5] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((x + 1), y, (z + 1)) / chunkSize, 0);
+	cube[6] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((x + 1), (y + 1), (z + 1)) / chunkSize, 0);
+	cube[7] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, (y + 1), (z + 1)) / chunkSize, 0);
+}
+
+// GetOffset finds the approximate point of intersection of the surface
+// between two points with the values v1 and v2
+float GetOffset(float v1, float v2)
+{
+	float delta = v2 - v1;
+	return (delta == 0.0f) ? 0.5f : (_Target - v1) / delta;
+}
+
+float3 CreateVertex(float3 position, float3 centre, float3 size)
+{
+	return position - centre;
 }
 
 [numthreads(1,1,1)]
 void MarchingCubes(uint3 id : SV_DispatchThreadID)
 {
-	float3 voxelPosition = id;
-	float2 step = float2(1 / chunkSize.x, 0);
-	float3 voxelUVW = voxelPosition / chunkSize;
+	float3 voxelUVW = float3(id) / chunkSize;
+	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW, 0);
 
-	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yyy, 0);
+	float3 pos = float3(id);
+	float3 centre = float3(chunkSize.x, 0, chunkSize.z) / 2.0;
 
-	float4 f0123 = float4(
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yyy, 0).x,
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yyx, 0).x,
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.xyx, 0).x,
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.xyy, 0).x
-	);
-	
-	float4 f4567 = float4(
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yxy, 0).x,
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.yxx, 0).x,
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.xxx, 0).x,
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW + step.xxy, 0).x
-	);
+	float cube[8];
+	FillCube(id.x, id.y, id.z, cube);
 
-	uint4 n0123 = (uint4)saturate(f0123 * 99999);
-	uint4 n4567 = (uint4)saturate(f4567 * 99999);
-	uint mc_case = (n0123.x     ) | (n0123.y << 1) | (n0123.z << 2) | (n0123.w << 3)
-				 | (n4567.x << 4) | (n4567.y << 5) | (n4567.z << 6) | (n4567.w << 7);
+	int i = 0;
+	int flagIndex = 0;
+	float3 edgeVertex[12];
 
-	uint num_polys = GetCaseToNumpolys(mc_case);
-	uint table_pos = mc_case * 5;
+	//Find which vertices are inside of the surface and which are outside
+	for (i = 0; i < 8; i++)
+		if (cube[i] <= _Target) flagIndex |= 1 << i;
 
-#if 1
+	//Find which edges are intersected by the surface
+	int edgeFlags = GetCubeEdgeFlags(flagIndex);
 
-	for (uint p = 0; p < num_polys; p++)
+	// no connections, return
+	if (edgeFlags == 0) return;
+
+	//Find the point of intersection of the surface with each edge
+	for (i = 0; i < 12; i++)
 	{
-		// TODO: this may not be the best way to do geometry generation
-		int3 polydata = GetTriTable(table_pos++);
+		//if there is an intersection on this edge
+		if ((edgeFlags & (1 << i)) != 0)
+		{
+			float offset = GetOffset(cube[edgeConnection[i].x], cube[edgeConnection[i].y]);
 
-		int triangleCount = triangleCounter.IncrementCounter() * 3;
-		
-		vertices[triangleCount + 0] = PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.x);
-		vertices[triangleCount + 1] = PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.y);
-		vertices[triangleCount + 2] = PlaceVerticeOnEdge(voxelPosition, f0123, f4567, polydata.z);
-
-		triangles[triangleCount + 0] = triangleCount + 0;
-		triangles[triangleCount + 1] = triangleCount + 1;
-		triangles[triangleCount + 2] = triangleCount + 2;
+			edgeVertex[i] = pos + (vertexOffset[edgeConnection[i].x] + offset * edgeDirection[i]);
+		}
 	}
 
-#else
+	float3 size = float3(chunkSize.x - 1, chunkSize.y - 1, chunkSize.z - 1);
 
-	/*
-	Triangle:
-	p4  p3
-	| / |
-	p1--p2
-	*/
-	
-	int triangleCount = triangleCounter.IncrementCounter() * 3;
+	int idx = id.x + id.y * chunkSize.x + id.z * chunkSize.x * chunkSize.y;
 
-	float3 p1 = float3(0, 0, 0) + id;
-	float3 p2 = float3(1, 0, 0) + id;
-	float3 p3 = float3(1, 1, 0) + id;
-	float3 p4 = float3(0, 1, 0) + id;
+	//Save the triangles that were found. There can be up to five per cube
+	for (i = 0; i < 5; i++)
+	{
+		//If the connection table is not -1 then this a triangle.
+		if (GetTriTable2(flagIndex * 16 + 3 * i) >= 0)
+		{
+			float3 position;
 
-	vertices[triangleCount + 0] = (p1);
-	vertices[triangleCount + 1] = (p2);
-	vertices[triangleCount + 2] = (p3);
-	
-	triangles[triangleCount + 0] = triangleCount + 0;
-	triangles[triangleCount + 1] = triangleCount + 1;
-	triangles[triangleCount + 2] = triangleCount + 2;
+			int triangleCount = triangleCounter.IncrementCounter() * 3;
 
-	triangleCount = triangleCounter.IncrementCounter() * 3;
+			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 0))];
+			vertices[triangleCount + 0] = CreateVertex(position, centre, size);
 
-	vertices[triangleCount + 0] = (p1);
-	vertices[triangleCount + 1] = (p3);
-	vertices[triangleCount + 2] = (p4);
-	
-	triangles[triangleCount + 0] = triangleCount + 0;
-	triangles[triangleCount + 1] = triangleCount + 1;
-	triangles[triangleCount + 2] = triangleCount + 2;
+			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 1))];
+			vertices[triangleCount + 1] = CreateVertex(position, centre, size);
 
-#endif
+			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 2))];
+			vertices[triangleCount + 2] = CreateVertex(position, centre, size);
+
+			triangles[triangleCount + 0] = triangleCount + 0;
+			triangles[triangleCount + 1] = triangleCount + 1;
+			triangles[triangleCount + 2] = triangleCount + 2;
+		}
+	}
+
 }

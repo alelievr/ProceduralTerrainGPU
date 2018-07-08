@@ -60,6 +60,7 @@ public class TerrainGenerator : MonoBehaviour
 		terrain3DNoiseShader.SetTexture(noiseKernel, KernelIds.noiseTextureId, noiseTexture);
 		terrain3DNoiseShader.SetVector(KernelIds.chunkPositionId, Vector4.zero);
 		terrain3DNoiseShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
+		terrain3DNoiseShader.SetFloat(KernelIds.seed, seed);
 
 		// Bind marching cubes parameters:
 		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.noiseTextureId, noiseTexture);
@@ -70,7 +71,7 @@ public class TerrainGenerator : MonoBehaviour
 		isoSurfaceShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
 	
 		// Bind debug parameters:
-		visualize3DNoiseMaterial.SetTexture("_NoiseTex", debugTexture);
+		visualize3DNoiseMaterial.SetTexture("_NoiseTex", noiseTexture);
 
 		GenerateTerrain();
 	}
@@ -132,7 +133,7 @@ public class TerrainGenerator : MonoBehaviour
 
 		int[] drawBufferData = {0, 1, 0, 0};
 		drawBuffer.SetData(drawBufferData);
-		ComputeBuffer.CopyCount(verticesBuffer, drawBuffer, 0);
+		ComputeBuffer.CopyCount(counterBuffer, drawBuffer, 0);
 
 		ComputeBuffer tmp = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
 		ComputeBuffer.CopyCount(counterBuffer, tmp, 0);
@@ -144,8 +145,14 @@ public class TerrainGenerator : MonoBehaviour
 		Vector3[] a = new Vector3[c[0] * 3];
 		verticesBuffer.GetData(a);
 
+		// for (int i = 0; i < a.Length; i++)
+		// 	Debug.Log("vertice: " + a[i]);
+
 		int[] t = new int[c[0] * 3];
 		trianglesBuffer.GetData(t);
+		
+		// for (int i = 0; i < a.Length; i++)
+		// 	Debug.Log("triangle: " + t[i]);
 
 		generatedMesh = new Mesh();
 		generatedMesh.vertices = a;
@@ -170,7 +177,9 @@ public class TerrainGenerator : MonoBehaviour
 			terrainMaterial.SetPass(0);
 			Graphics.DrawProceduralIndirect(MeshTopology.Triangles, drawBuffer, 0);
 
-			if (i == 500)
+			Debug.Log("draw !");
+
+			if (i >= 500)
 			{
 				displayTerrain = false;
 				i = 0;
