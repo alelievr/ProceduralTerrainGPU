@@ -7,11 +7,14 @@
 
 Texture3D<half> _NoiseTexture;
 SamplerState sampler_NoiseTexture;
+Texture3D<half3> _NormalTexture;
+SamplerState sampler_NormalTexture;
 float3 chunkSize;
 
 RWTexture3D<half> _DebugOutput;
 
-RWStructuredBuffer<float3> vertices;
+RWStructuredBuffer<half3> vertices;
+RWStructuredBuffer<half3> normals;
 RWStructuredBuffer<int> triangles;
 RWStructuredBuffer<int> triangleCounter;
 
@@ -50,6 +53,18 @@ static float3 vertexOffset[8] =
 	float3(0, 0, 1),float3(1, 0, 1),float3(1, 1, 1),float3(0, 1, 1)
 };
 
+float3 ComputeNormal(float3 uvw)
+{
+	float4 step = float4(1.0 / chunkSize, 0);
+	float3 gradient = float3(
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw + step.xww, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw - step.xww, 0),
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw + step.wwy, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw - step.wwy, 0),
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw + step.wzw, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw - step.wzw, 0)
+	);
+	
+	return normalize(-gradient);
+}
+
 void FillCube(int x, int y, int z, out float cube[8])
 {
 	cube[0] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, y, z) / chunkSize, 0);
@@ -71,22 +86,26 @@ float GetOffset(float v1, float v2)
 	return (delta == 0.0f) ? 0.5f : (_Target - v1) / delta;
 }
 
-float3 CreateVertex(float3 position, float3 centre, float3 size)
+void CreateVertex(float3 position, float3 centre, float3 size, int index)
 {
-	return position - centre;
+	float3 pos = position - centre;
+	vertices[index] = pos;
+	float3 uvw = pos / size;
+	normals[index] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, sampler_NormalTexture, uvw, 0);
 }
 
 [numthreads(1,1,1)]
 void MarchingCubes(uint3 id : SV_DispatchThreadID)
 {
 	float3 voxelUVW = float3(id) / chunkSize;
-	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, voxelUVW, 0);
+	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, sampler_NormalTexture, voxelUVW, 0);
 
 	float3 pos = float3(id);
 	float3 centre = float3(chunkSize.x, 0, chunkSize.z) / 2.0;
 
 	float cube[8];
 	FillCube(id.x, id.y, id.z, cube);
+	float3 normal = ComputeNormal(id);
 
 	int i = 0;
 	int flagIndex = 0;
@@ -129,13 +148,13 @@ void MarchingCubes(uint3 id : SV_DispatchThreadID)
 			int triangleCount = triangleCounter.IncrementCounter() * 3;
 
 			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 0))];
-			vertices[triangleCount + 0] = CreateVertex(position, centre, size);
+			CreateVertex(position, centre, size, triangleCount + 0);
 
 			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 1))];
-			vertices[triangleCount + 1] = CreateVertex(position, centre, size);
+			CreateVertex(position, centre, size, triangleCount + 1);
 
 			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 2))];
-			vertices[triangleCount + 2] = CreateVertex(position, centre, size);
+			CreateVertex(position, centre, size, triangleCount + 2);
 
 			triangles[triangleCount + 0] = triangleCount + 0;
 			triangles[triangleCount + 1] = triangleCount + 1;

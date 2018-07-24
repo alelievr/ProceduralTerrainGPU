@@ -1,0 +1,22 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ComputeNormals
+
+#include "CoreRP/ShaderLibrary/Common.hlsl"
+
+Texture3D<half> _NoiseTexture;
+SamplerState sampler_NoiseTexture;
+
+RWTexture3D<half3> _NormalTexture;
+float3 chunkSize;
+
+[numthreads(8,8,8)]
+void ComputeNormals(uint3 id : SV_DispatchThreadID)
+{
+	float v = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, id / chunkSize, 0);
+	
+	float dx = v - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((id.x + 1), id.y, id.z) / chunkSize, 0);
+	float dy = v - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(id.x, (id.y + 1), id.z) / chunkSize, 0);
+	float dz = v - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(id.x, id.y, (id.z + 1)) / chunkSize, 0);
+
+	_NormalTexture[id] = normalize(float3(dx, dy, dz));
+}
