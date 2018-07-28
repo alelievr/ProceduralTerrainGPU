@@ -6,9 +6,8 @@
 #include "MarchingCubeConstants.hlsl"
 
 Texture3D<half> _NoiseTexture;
-SamplerState sampler_NoiseTexture;
 Texture3D<half3> _NormalTexture;
-SamplerState sampler_NormalTexture;
+SamplerState s_trilinear_clamp_sampler;
 float3 chunkSize;
 
 RWTexture3D<half> _DebugOutput;
@@ -57,9 +56,9 @@ float3 ComputeNormal(float3 uvw)
 {
 	float4 step = float4(1.0 / chunkSize, 0);
 	float3 gradient = float3(
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw + step.xww, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw - step.xww, 0),
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw + step.wwy, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw - step.wwy, 0),
-		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw + step.wzw, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, uvw - step.wzw, 0)
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw + step.xww, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw - step.xww, 0),
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw + step.wwy, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw - step.wwy, 0),
+		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw + step.wzw, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw - step.wzw, 0)
 	);
 	
 	return normalize(-gradient);
@@ -67,15 +66,15 @@ float3 ComputeNormal(float3 uvw)
 
 void FillCube(int x, int y, int z, out float cube[8])
 {
-	cube[0] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, y, z) / chunkSize, 0);
-	cube[1] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((x + 1), y, z) / chunkSize, 0);
-	cube[2] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((x + 1), (y + 1), z) / chunkSize, 0);
-	cube[3] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, (y + 1), z) / chunkSize, 0);
+	cube[0] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, float3(x, y, z) / chunkSize, 0);
+	cube[1] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, float3((x + 1), y, z) / chunkSize, 0);
+	cube[2] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, float3((x + 1), (y + 1), z) / chunkSize, 0);
+	cube[3] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, float3(x, (y + 1), z) / chunkSize, 0);
 
-	cube[4] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, y, (z + 1)) / chunkSize, 0);
-	cube[5] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((x + 1), y, (z + 1)) / chunkSize, 0);
-	cube[6] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3((x + 1), (y + 1), (z + 1)) / chunkSize, 0);
-	cube[7] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, sampler_NoiseTexture, float3(x, (y + 1), (z + 1)) / chunkSize, 0);
+	cube[4] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, float3(x, y, (z + 1)) / chunkSize, 0);
+	cube[5] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, float3((x + 1), y, (z + 1)) / chunkSize, 0);
+	cube[6] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, float3((x + 1), (y + 1), (z + 1)) / chunkSize, 0);
+	cube[7] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, float3(x, (y + 1), (z + 1)) / chunkSize, 0);
 }
 
 // GetOffset finds the approximate point of intersection of the surface
@@ -90,15 +89,15 @@ void CreateVertex(float3 position, float3 centre, float3 size, int index)
 {
 	float3 pos = position - centre;
 	vertices[index] = pos;
-	float3 uvw = pos / size;
-	normals[index] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, sampler_NormalTexture, uvw, 0);
+	float3 uvw = position / size;
+	normals[index] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, s_trilinear_clamp_sampler, uvw, 0);
 }
 
 [numthreads(1,1,1)]
 void MarchingCubes(uint3 id : SV_DispatchThreadID)
 {
 	float3 voxelUVW = float3(id) / chunkSize;
-	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, sampler_NormalTexture, voxelUVW, 0);
+	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, s_trilinear_clamp_sampler, voxelUVW, 0);
 
 	float3 pos = float3(id);
 	float3 centre = float3(chunkSize.x, 0, chunkSize.z) / 2.0;

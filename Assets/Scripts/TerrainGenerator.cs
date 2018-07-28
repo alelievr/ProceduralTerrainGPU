@@ -97,6 +97,7 @@ public class TerrainGenerator : MonoBehaviour
 		noiseTexture.enableRandomWrite = true;
 		noiseTexture.volumeDepth = size;
 		noiseTexture.filterMode = FilterMode.Point;
+		noiseTexture.wrapMode = TextureWrapMode.Clamp;
 		noiseTexture.Create();
 		
 		// Create the debug texture
@@ -105,6 +106,7 @@ public class TerrainGenerator : MonoBehaviour
 		debugTexture.enableRandomWrite = true;
 		debugTexture.volumeDepth = size;
 		debugTexture.filterMode = FilterMode.Point;
+		debugTexture.wrapMode = TextureWrapMode.Clamp;
 		debugTexture.Create();
 		
 		// Create the normal texture
@@ -115,6 +117,7 @@ public class TerrainGenerator : MonoBehaviour
 		normalTexture.enableRandomWrite = true;
 		normalTexture.volumeDepth = size;
 		normalTexture.filterMode = FilterMode.Point;
+		normalTexture.wrapMode = TextureWrapMode.Clamp;
 		normalTexture.Create();
 
 		// Create the computeBuffer that will store vertices and indices for draw procedural

@@ -42,8 +42,9 @@ float fbm(float3 p) {
 [numthreads(1, 1, 1)]
 void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 {
-	float3 worldNoisePosition = float3(id) / chunkSize + chunkPosition;
+	float3 worldNoisePosition = float3(id) / chunkSize;
 
 	// Substract 0.5 to generate negative numbers
-	_NoiseTexture[id.xyz] = fbm(worldNoisePosition * 4 + seed * float3(55.485615, -534.6543684, 6.465342)) * 2 - 1;
+	float f = fbm(worldNoisePosition * 4 + seed * float3(55.485615, -534.6543684, 6.465342)) * 2 - 1;
+	_NoiseTexture[id] = f;
 }
