@@ -97,7 +97,7 @@ void CreateVertex(float3 position, float3 centre, float3 size, int index)
 void MarchingCubes(uint3 id : SV_DispatchThreadID)
 {
 	float3 voxelUVW = float3(id) / chunkSize;
-	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, s_trilinear_clamp_sampler, voxelUVW, 0);
+	_DebugOutput[id] = SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, voxelUVW, 0);
 
 	float3 pos = float3(id);
 	float3 centre = float3(chunkSize.x, 0, chunkSize.z) / 2.0;

@@ -22,4 +22,7 @@ public class KernelIds
 
     // Noise parameters
     public static readonly int      seed = Shader.PropertyToID("seed");
+    public static readonly int      lacunarity = Shader.PropertyToID("lacunarity");
+    public static readonly int      octaves = Shader.PropertyToID("octaves");
+    public static readonly int      scale = Shader.PropertyToID("scale");
 }

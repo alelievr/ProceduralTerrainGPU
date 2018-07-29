@@ -19,10 +19,11 @@ public class TerrainGenerator : MonoBehaviour
 	public int				size = 64;
 
 	[Space, Header("Noise settings")]
-	public int				seed;
+	public float			seed;
 	public float			scale = 1;
-	public float			persistance = 1.2f;
-	public float			lacunarity = 1.6f;
+	// public float			persistance = 1.2f;
+	public float			lacunarity = 2.0f;
+	public int				octaves = 3;
 
 	[Space, Header("Terrain material")]
 	public Material			terrainMaterial;
@@ -67,6 +68,9 @@ public class TerrainGenerator : MonoBehaviour
 		terrain3DNoiseShader.SetVector(KernelIds.chunkPositionId, Vector4.zero);
 		terrain3DNoiseShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
 		terrain3DNoiseShader.SetFloat(KernelIds.seed, seed);
+		terrain3DNoiseShader.SetFloat(KernelIds.lacunarity, lacunarity);
+		terrain3DNoiseShader.SetInt(KernelIds.octaves, octaves);
+		terrain3DNoiseShader.SetFloat(KernelIds.scale, scale);
 
 		// Bind marching cubes parameters:
 		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.noiseTextureId, noiseTexture);
