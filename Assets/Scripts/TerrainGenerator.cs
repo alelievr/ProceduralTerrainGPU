@@ -24,6 +24,7 @@ public class TerrainGenerator : MonoBehaviour
 	// public float			persistance = 1.2f;
 	public float			lacunarity = 2.0f;
 	public int				octaves = 3;
+	public Vector3			position;
 
 	[Space, Header("Terrain material")]
 	public Material			terrainMaterial;
@@ -65,7 +66,7 @@ public class TerrainGenerator : MonoBehaviour
 
 		// Bind noise kernel parameters:
 		terrain3DNoiseShader.SetTexture(noiseKernel, KernelIds.noiseTextureId, noiseTexture);
-		terrain3DNoiseShader.SetVector(KernelIds.chunkPositionId, Vector4.zero);
+		terrain3DNoiseShader.SetVector(KernelIds.chunkPosition, position);
 		terrain3DNoiseShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
 		terrain3DNoiseShader.SetFloat(KernelIds.seed, seed);
 		terrain3DNoiseShader.SetFloat(KernelIds.lacunarity, lacunarity);

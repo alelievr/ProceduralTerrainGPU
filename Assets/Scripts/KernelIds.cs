@@ -11,7 +11,7 @@ public class KernelIds
     public static readonly int      noiseTextureId = Shader.PropertyToID("_NoiseTexture");
     public static readonly int      debugTextureId = Shader.PropertyToID("_DebugOutput");
     public static readonly int      normalTextureId = Shader.PropertyToID("_NormalTexture");
-    public static readonly int      chunkPositionId = Shader.PropertyToID("chunkPosition");
+    public static readonly int      chunkPosition = Shader.PropertyToID("chunkPosition");
     public static readonly int      chunkSizeId = Shader.PropertyToID("chunkSize");
 
     // Mesh buffers

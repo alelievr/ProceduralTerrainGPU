@@ -17,6 +17,10 @@ float sample(float3 pos)
 [numthreads(8,8,8)]
 void ComputeNormals(uint3 id : SV_DispatchThreadID)
 {
+    // do not compute normals on the boreder, they will be false
+    if (!any(id % chunkSize))
+        return ;
+
 	float3 p = float3(id) / chunkSize;
 
 	const float EPSILON = rcp(chunkSize.x);
