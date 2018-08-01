@@ -18,7 +18,6 @@ public class KernelIds
     public static readonly int      verticesId = Shader.PropertyToID("vertices");
     public static readonly int      trianglesId = Shader.PropertyToID("triangles");
     public static readonly int      normalsId = Shader.PropertyToID("normals");
-    public static readonly int      triangleCounterId = Shader.PropertyToID("triangleCounter");
 
     // Noise parameters
     public static readonly int      seed = Shader.PropertyToID("seed");

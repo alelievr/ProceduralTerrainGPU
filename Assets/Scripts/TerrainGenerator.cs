@@ -48,7 +48,7 @@ public class TerrainGenerator : MonoBehaviour
 	ComputeBuffer			verticesBuffer;
 	ComputeBuffer			normalsBuffer;
 	ComputeBuffer			trianglesBuffer;
-	ComputeBuffer			counterBuffer;
+	ComputeBuffer			verticesCountReadbackBuffer;
 
 	ComputeBuffer			drawBuffer;
 
@@ -79,7 +79,6 @@ public class TerrainGenerator : MonoBehaviour
 		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.normalTextureId, normalTexture);
 		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.verticesId, verticesBuffer);
 		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.trianglesId, trianglesBuffer);
-		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.triangleCounterId, counterBuffer);
 		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.normalsId, normalsBuffer);
 		isoSurfaceShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
 
@@ -126,11 +125,11 @@ public class TerrainGenerator : MonoBehaviour
 		normalTexture.Create();
 
 		// Create the computeBuffer that will store vertices and indices for draw procedural
-		verticesBuffer = new ComputeBuffer(size * size * size * 15, sizeof(float) * 3, ComputeBufferType.Default);
+		verticesBuffer = new ComputeBuffer(size * size * size * 15, sizeof(float) * 3, ComputeBufferType.Counter);
 		// The maximum number of triangles is 5 times the number of volxel (with the marching cubes algorithm)
 		trianglesBuffer = new ComputeBuffer(size * size * size * 5, sizeof(float) * 3, ComputeBufferType.Default);
 		// A buffer to generate the triangle indicies and keep track of the number of triangles from compute shader
-		counterBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Counter);
+		verticesCountReadbackBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
 		// The normal buffer, set to the maximum of vertex
 		normalsBuffer = new ComputeBuffer(size * size * size * 15, sizeof(float) * 3, ComputeBufferType.Default);
 
@@ -155,9 +154,6 @@ public class TerrainGenerator : MonoBehaviour
 		sw.Start();
 
 		verticesBuffer.SetCounterValue(0);
-		normalsBuffer.SetCounterValue(0);
-		trianglesBuffer.SetCounterValue(0);
-		counterBuffer.SetCounterValue(0);
 		
 		// 3D noise generation
 		terrain3DNoiseShader.Dispatch(noiseKernel, size / noiseKernelGroupSize.x, size / noiseKernelGroupSize.y, size / noiseKernelGroupSize.z);
@@ -168,27 +164,37 @@ public class TerrainGenerator : MonoBehaviour
 		// Isosurface generation
 		isoSurfaceShader.Dispatch(marchingCubeKernel, size / marchingCubeKernelGroupSize.x, size / marchingCubeKernelGroupSize.y, size / marchingCubeKernelGroupSize.z);
 
-		int[] drawBufferData = {0, 1, 0, 0};
-		drawBuffer.SetData(drawBufferData);
-		ComputeBuffer.CopyCount(counterBuffer, drawBuffer, 0);
+		ComputeBuffer.CopyCount(verticesBuffer, verticesCountReadbackBuffer, 0);
 
-		ComputeBuffer tmp = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
-		ComputeBuffer.CopyCount(counterBuffer, tmp, 0);
-		
-		int[] c = new int[1];
-		tmp.GetData(c);
-		Debug.Log("Counter: " + c[0]);
-		
-		Vector3[] a = new Vector3[c[0] * 3];
+		// Get the vertices count back to the cpu
+		int[] verticesCountBuffer = new int[1];
+		verticesCountReadbackBuffer.GetData(verticesCountBuffer);
+		int verticesCount = verticesCountBuffer[0] * 3;
+
+		// Create an argument buffer for the DrawProceduralIndirect
+		int[] drawBufferData = {verticesCount, 1, 0, 0};
+		drawBuffer.SetData(drawBufferData);
+
+		CreateDebugMesh(verticesCount);
+
+		sw.Stop();
+		Debug.Log("3D noise generated in " + sw.Elapsed.TotalMilliseconds + " ms");
+
+		displayTerrain = true;
+	}
+
+	void CreateDebugMesh(int verticesCount)
+	{
+		Vector3[] a = new Vector3[verticesCount];
 		verticesBuffer.GetData(a);
 
-		Vector3[] n = new Vector3[c[0] * 3];
+		Vector3[] n = new Vector3[verticesCount];
 		normalsBuffer.GetData(n);
 
 		// for (int i = 0; i < a.Length; i++)
 		// 	Debug.Log("vertice: " + a[i]);
 
-		int[] t = new int[c[0] * 3];
+		int[] t = new int[verticesCount];
 		trianglesBuffer.GetData(t);
 		
 		// for (int i = 0; i < a.Length; i++)
@@ -200,11 +206,6 @@ public class TerrainGenerator : MonoBehaviour
 		generatedMesh.normals = n;
 
 		debugMeshRenderer.GetComponent< MeshFilter >().sharedMesh = generatedMesh;
-		
-		sw.Stop();
-		Debug.Log("3D noise generated in " + sw.Elapsed.TotalMilliseconds + " ms");
-
-		displayTerrain = true;
 	}
 
 	int i = 0;
@@ -235,7 +236,7 @@ public class TerrainGenerator : MonoBehaviour
 
 	private void Release()
 	{
-		counterBuffer.Release();
+		verticesCountReadbackBuffer.Release();
 		verticesBuffer.Release();
 		trianglesBuffer.Release();
 	}
