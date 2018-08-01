@@ -4,7 +4,7 @@ public class KernelIds
 {
     // Kernel names
     public static readonly string   perlinNoise3DKernel = "PerlinNoise3D";
-    public static readonly string   marchingCubeKernel = "MarchingCube";
+    public static readonly string   marchingCubeKernel = "MarchingCubes";
     public static readonly string   computeNormalKernel = "ComputeNormals";
 
     // IsoSurface properties

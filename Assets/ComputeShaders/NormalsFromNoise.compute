@@ -14,7 +14,7 @@ float sample(float3 pos)
 	return SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, pos, 0);
 }
 
-[numthreads(8,8,8)]
+[numthreads(8, 8, 8)]
 void ComputeNormals(uint3 id : SV_DispatchThreadID)
 {
     // do not compute normals on the boreder, they will be false

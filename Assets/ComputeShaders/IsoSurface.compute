@@ -81,7 +81,7 @@ void CreateVertex(float3 position, float3 centre, float3 size, int index)
 	normals[index] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, s_trilinear_repeat_sampler, uvw, 0);
 }
 
-[numthreads(1, 3, 3)]
+[numthreads(8, 8, 8)]
 void MarchingCubes(uint3 id : SV_DispatchThreadID)
 {
 	// Do not compute isosurface on borders, they'll be false

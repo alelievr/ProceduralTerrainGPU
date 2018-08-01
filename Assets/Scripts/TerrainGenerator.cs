@@ -58,9 +58,9 @@ public class TerrainGenerator : MonoBehaviour
 	public void Start ()
 	{
 		displayTerrain = false;
-		noiseKernel = FindKernel(KernelIds.perlinNoise3DKernel, out noiseKernelGroupSize);
-		marchingCubeKernel = FindKernel(KernelIds.marchingCubeKernel, out marchingCubeKernelGroupSize);
-		computeNormalKernel = FindKernel(KernelIds.computeNormalKernel, out computeNormalGroupSize);
+		noiseKernel = FindKernel(terrain3DNoiseShader, KernelIds.perlinNoise3DKernel, out noiseKernelGroupSize);
+		marchingCubeKernel = FindKernel(isoSurfaceShader, KernelIds.marchingCubeKernel, out marchingCubeKernelGroupSize);
+		computeNormalKernel = FindKernel(normalFromNoiseShader, KernelIds.computeNormalKernel, out computeNormalGroupSize);
 
 		GenerateBuffers();
 
@@ -137,12 +137,12 @@ public class TerrainGenerator : MonoBehaviour
 		drawBuffer = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
 	}
 
-	int FindKernel(string kernelName, out Vector3Int size)
+	int FindKernel(ComputeShader computeShader, string kernelName, out Vector3Int size)
 	{
-		int kernel = terrain3DNoiseShader.FindKernel(KernelIds.perlinNoise3DKernel);
+		int kernel = computeShader.FindKernel(kernelName);
 		uint sizeX, sizeY, sizeZ;
 		
-		terrain3DNoiseShader.GetKernelThreadGroupSizes(noiseKernel, out sizeX, out sizeY, out sizeZ);
+		computeShader.GetKernelThreadGroupSizes(kernel, out sizeX, out sizeY, out sizeZ);
 		size = new Vector3Int((int)sizeX, (int)sizeY, (int)sizeZ);
 
 		return kernel;
