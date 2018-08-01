@@ -1,0 +1,14 @@
+﻿#pragma kernel CopyMeshBuffers
+
+StructuredBuffer<half3> generatedVertices;
+StructuredBuffer<half3> generatedNormals;
+
+RWStructuredBuffer<half3> meshVertices;
+RWStructuredBuffer<half3> meshNormals;
+
+[numthreads(64, 1, 1)]
+void CopyMeshBuffers(uint3 id : SV_DispatchThreadID)
+{
+	meshVertices[id.x] = generatedVertices[id.x];
+	meshNormals[id.x] = generatedNormals[id.x];
+}

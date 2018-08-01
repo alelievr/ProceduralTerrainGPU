@@ -6,6 +6,7 @@ public class KernelIds
     public static readonly string   perlinNoise3DKernel = "PerlinNoise3D";
     public static readonly string   marchingCubeKernel = "MarchingCubes";
     public static readonly string   computeNormalKernel = "ComputeNormals";
+    public static readonly string   copyMeshBuffers = "CopyMeshBuffers";
 
     // IsoSurface properties
     public static readonly int      noiseTextureId = Shader.PropertyToID("_NoiseTexture");
@@ -24,4 +25,10 @@ public class KernelIds
     public static readonly int      lacunarity = Shader.PropertyToID("lacunarity");
     public static readonly int      octaves = Shader.PropertyToID("octaves");
     public static readonly int      scale = Shader.PropertyToID("scale");
+
+    // Copy buffers parameters 
+    public static readonly int      generatedVertices = Shader.PropertyToID("generatedVertices");
+    public static readonly int      generatedNormals = Shader.PropertyToID("generatedNormals");
+    public static readonly int      meshVertices = Shader.PropertyToID("meshVertices");
+    public static readonly int      meshNormals = Shader.PropertyToID("meshNormals");
 }
