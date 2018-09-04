@@ -25,10 +25,18 @@ public class KernelIds
     public static readonly int      lacunarity = Shader.PropertyToID("lacunarity");
     public static readonly int      octaves = Shader.PropertyToID("octaves");
     public static readonly int      scale = Shader.PropertyToID("scale");
+    public static readonly int      frequency = Shader.PropertyToID("frequency");
+    public static readonly int      gain = Shader.PropertyToID("gain");
 
     // Copy buffers parameters 
     public static readonly int      generatedVertices = Shader.PropertyToID("generatedVertices");
     public static readonly int      generatedNormals = Shader.PropertyToID("generatedNormals");
     public static readonly int      meshVertices = Shader.PropertyToID("meshVertices");
     public static readonly int      meshNormals = Shader.PropertyToID("meshNormals");
+}
+
+public class ShaderIds
+{
+    public static readonly int      vertices = Shader.PropertyToID("vertices");
+    public static readonly int      normals = Shader.PropertyToID("normals");
 }

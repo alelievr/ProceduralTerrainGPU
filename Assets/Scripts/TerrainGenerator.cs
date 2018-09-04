@@ -18,6 +18,7 @@ public class TerrainGenerator : MonoBehaviour
 
 	[Space, Header("Chunk settings")]
 	public int				size = 64;
+	public int				chunkLoadSize = 1;
 
 	[Space, Header("Noise settings")]
 	public float			seed;
@@ -25,15 +26,15 @@ public class TerrainGenerator : MonoBehaviour
 	// public float			persistance = 1.2f;
 	public float			lacunarity = 2.0f;
 	public int				octaves = 3;
-	public Vector3			position;
+	public float			gain = 1;
+	public float			frequency = 1;
+	public Vector3			chunkPosition;
 
 	[Space, Header("Terrain material")]
 	public Material			terrainMaterial;
 	
 	[Space, Header("Debug")]
 	public Material			visualize3DNoiseMaterial;
-	public Mesh				generatedMesh;
-	public MeshRenderer		debugMeshRenderer;
 
 	int						noiseKernel;
 	Vector3Int				noiseKernelGroupSize;
@@ -53,14 +54,12 @@ public class TerrainGenerator : MonoBehaviour
 	ComputeBuffer			trianglesBuffer;
 	ComputeBuffer			verticesCountReadbackBuffer;
 
-	ComputeBuffer			drawBuffer;
-
-	[System.NonSerialized]
-	bool					displayTerrain = false;
+	new TerrainRenderer		renderer;
 
 	public void Start ()
 	{
-		displayTerrain = false;
+		renderer = GetComponent< TerrainRenderer >();
+		
 		noiseKernel = FindKernel(terrain3DNoiseShader, KernelIds.perlinNoise3DKernel, out noiseKernelGroupSize);
 		marchingCubeKernel = FindKernel(isoSurfaceShader, KernelIds.marchingCubeKernel, out marchingCubeKernelGroupSize);
 		computeNormalKernel = FindKernel(normalFromNoiseShader, KernelIds.computeNormalKernel, out computeNormalGroupSize);
@@ -70,12 +69,14 @@ public class TerrainGenerator : MonoBehaviour
 
 		// Bind noise kernel parameters:
 		terrain3DNoiseShader.SetTexture(noiseKernel, KernelIds.noiseTextureId, noiseTexture);
-		terrain3DNoiseShader.SetVector(KernelIds.chunkPosition, position);
+		terrain3DNoiseShader.SetVector(KernelIds.chunkPosition, chunkPosition);
 		terrain3DNoiseShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
 		terrain3DNoiseShader.SetFloat(KernelIds.seed, seed);
 		terrain3DNoiseShader.SetFloat(KernelIds.lacunarity, lacunarity);
 		terrain3DNoiseShader.SetInt(KernelIds.octaves, octaves);
 		terrain3DNoiseShader.SetFloat(KernelIds.scale, scale);
+		terrain3DNoiseShader.SetFloat(KernelIds.gain, gain);
+		terrain3DNoiseShader.SetFloat(KernelIds.frequency, frequency);
 
 		// Bind marching cubes parameters:
 		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.noiseTextureId, noiseTexture);
@@ -98,7 +99,13 @@ public class TerrainGenerator : MonoBehaviour
 		// Bind debug parameters:
 		visualize3DNoiseMaterial.SetTexture("_NoiseTex", normalTexture);
 
-		GenerateTerrain();
+		for (int x = -chunkLoadSize; x <= chunkLoadSize; x++)
+			for (int z = -chunkLoadSize; z <= chunkLoadSize; z++)
+			{
+				chunkPosition = new Vector3(x, 0, z);
+				terrain3DNoiseShader.SetVector(KernelIds.chunkPosition, chunkPosition);
+				GenerateTerrain();
+			}
 	}
 
 	void GenerateBuffers()
@@ -141,7 +148,6 @@ public class TerrainGenerator : MonoBehaviour
 		// The normal buffer, set to the maximum of vertex
 		normalsBuffer = new ComputeBuffer(size * size * size * 15, sizeof(float) * 3, ComputeBufferType.Default);
 
-		drawBuffer = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
 	}
 
 	int FindKernel(ComputeShader computeShader, string kernelName, out Vector3Int size)
@@ -157,11 +163,12 @@ public class TerrainGenerator : MonoBehaviour
 
 	public void GenerateTerrain()
 	{
-		displayTerrain = false;
 		Stopwatch sw = new Stopwatch();
 		sw.Start();
 
 		verticesBuffer.SetCounterValue(0);
+		normalsBuffer.SetCounterValue(0);
+		trianglesBuffer.SetCounterValue(0);
 		
 		// 3D noise generation
 		terrain3DNoiseShader.Dispatch(noiseKernel, size / noiseKernelGroupSize.x, size / noiseKernelGroupSize.y, size / noiseKernelGroupSize.z);
@@ -179,75 +186,34 @@ public class TerrainGenerator : MonoBehaviour
 		verticesCountReadbackBuffer.GetData(verticesCountBuffer);
 		int verticesCount = verticesCountBuffer[0] * 3;
 
-		// Create an argument buffer for the DrawProceduralIndirect
-		int[] drawBufferData = {verticesCount, 1, 0, 0};
-		drawBuffer.SetData(drawBufferData);
+		// ComputeBuffer drawChunkBuffer = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
+		// // Create an argument buffer for the DrawProceduralIndirect
+		// int[] drawBufferData = {verticesCount, 1, 0, 0};
+		// drawChunkBuffer.SetData(drawBufferData);
 
 		// Align the buffer size on the copy kernel dispatch size
 		int copySize = verticesCount + (copyMeshBufferGroupSize.x - (verticesCount % copyMeshBufferGroupSize.x));
 		// Allocate the final buffers for the mesh
-		ComputeBuffer meshVertices = new ComputeBuffer(copySize, sizeof(float) * 3);
-		ComputeBuffer meshNormals = new ComputeBuffer(copySize, sizeof(float) * 3);
+		// ComputeBuffer meshVertices = new ComputeBuffer(copySize, sizeof(float) * 3);
+		// ComputeBuffer meshNormals = new ComputeBuffer(copySize, sizeof(float) * 3);
 
 		// Bind these buffers for copy
-		copyMeshBuffersShader.SetBuffer(copyMeshBufferKernel, KernelIds.meshVertices, meshVertices);
-		copyMeshBuffersShader.SetBuffer(copyMeshBufferKernel, KernelIds.meshNormals, meshNormals);
+		// copyMeshBuffersShader.SetBuffer(copyMeshBufferKernel, KernelIds.meshVertices, meshVertices);
+		// copyMeshBuffersShader.SetBuffer(copyMeshBufferKernel, KernelIds.meshNormals, meshNormals);
 
 		// And copy them
-		copyMeshBuffersShader.Dispatch(copyMeshBufferKernel, copySize / copyMeshBufferGroupSize.x, 1, 1);
+		// copyMeshBuffersShader.Dispatch(copyMeshBufferKernel, copySize / copyMeshBufferGroupSize.x, 1, 1);
 
-		CreateDebugMesh(meshVertices, meshNormals, verticesCount);
+		renderer.ClearChunks();
+		renderer.AddChunkToRender(verticesBuffer, normalsBuffer, chunkPosition, verticesCount);
 
 		sw.Stop();
 		Debug.Log("3D noise generated in " + sw.Elapsed.TotalMilliseconds + " ms");
-
-		displayTerrain = true;
 	}
 
-	void CreateDebugMesh(ComputeBuffer meshVertices, ComputeBuffer meshNormals, int verticesCount)
+	public void Update()
 	{
-		Vector3[] a = new Vector3[verticesCount];
-		meshVertices.GetData(a);
-
-		Vector3[] n = new Vector3[verticesCount];
-		meshNormals.GetData(n);
-
-		// for (int i = 0; i < a.Length; i++)
-		// 	Debug.Log("vertice: " + a[i]);
-
-		int[] t = new int[verticesCount];
-		trianglesBuffer.GetData(t);
 		
-		// for (int i = 0; i < a.Length; i++)
-		// 	Debug.Log("triangle: " + t[i]);
-
-		generatedMesh = new Mesh();
-		generatedMesh.vertices = a;
-		generatedMesh.triangles = t;
-		generatedMesh.normals = n;
-
-		debugMeshRenderer.GetComponent< MeshFilter >().sharedMesh = generatedMesh;
-	}
-
-	int i = 0;
-	
-	public void Update ()
-	{
-		i++;
-
-		if (displayTerrain)
-		{
-			terrainMaterial.SetPass(0);
-			Graphics.DrawProceduralIndirect(MeshTopology.Triangles, drawBuffer, 0);
-
-			Debug.Log("draw !");
-
-			if (i >= 500)
-			{
-				displayTerrain = false;
-				i = 0;
-			}
-		}
 	}
 
 	private void OnDestroy()

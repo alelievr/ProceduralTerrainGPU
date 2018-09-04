@@ -12,6 +12,8 @@ cbuffer noiseSettings
 	int octaves;
 	float lacunarity;
 	float scale;
+	float frequency;
+	float gain;
 }
 
 float hash(float h) {
@@ -46,13 +48,37 @@ float fbm(float3 p) {
 	return f;
 }
 
+float turbulence(float3 p)
+{
+	float sum = 0;
+	float freq = frequency, amp = 1.0;
+	for(int i = 0; i < octaves; i++) 
+	{
+		sum += abs(noise(p*freq))*amp;
+		freq *= lacunarity;
+		amp *= gain;
+	}
+	return sum;
+}
+
+float ridge(float h, float offset)
+{
+    h = abs(h);
+    h = offset - h;
+    h = h * h;
+    return h;
+}
+
 [numthreads(8, 8, 8)]
 void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 {
 	float3 worldNoisePosition = float3(id - 1.0) * rcp(chunkSize - 2.0) + chunkPosition;
 
+	// Add seed to position
+	worldNoisePosition = worldNoisePosition * scale + seed * float3(55.485615, -534.6543684, 6.465342);
+
 	// Return a random number between -1 and 1
-	float f = fbm(worldNoisePosition * scale + seed * float3(55.485615, -534.6543684, 6.465342)) * 2 - 1;
+	float f = turbulence(worldNoisePosition) * 2 - 1;
 	_NoiseTexture[id] = lerp(-2, f, float(chunkSize.y - id.y) / chunkSize.y * 2 + 0.5);
 	
 	// Debug Sphere:

@@ -74,7 +74,7 @@ float GetOffset(float v1, float v2)
 
 void CreateVertex(float3 position, float3 centre, float3 size, int index)
 {
-	float3 pos = position - centre;
+	float3 pos = (position - centre) * size / (size - 2);
 	vertices[index] = pos;
 	float3 uvw = position / size;
 	normals[index] = SAMPLE_TEXTURE3D_LOD(_NormalTexture, s_trilinear_clamp_sampler, uvw, 0);
@@ -126,8 +126,6 @@ void MarchingCubes(uint3 id : SV_DispatchThreadID)
 		}
 	}
 
-	float3 size = float3(chunkSize.x - 1, chunkSize.y - 1, chunkSize.z - 1);
-
 	int idx = id.x + id.y * chunkSize.x + id.z * chunkSize.x * chunkSize.y;
 
 	//Save the triangles that were found. There can be up to five per cube
@@ -141,13 +139,13 @@ void MarchingCubes(uint3 id : SV_DispatchThreadID)
 			int verticesCount = vertices.IncrementCounter() * 3;
 
 			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 0))];
-			CreateVertex(position, centre, size, verticesCount + 0);
+			CreateVertex(position, centre, chunkSize, verticesCount + 0);
 
 			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 1))];
-			CreateVertex(position, centre, size, verticesCount + 1);
+			CreateVertex(position, centre, chunkSize, verticesCount + 1);
 
 			position = edgeVertex[GetTriTable2(flagIndex * 16 + (3 * i + 2))];
-			CreateVertex(position, centre, size, verticesCount + 2);
+			CreateVertex(position, centre, chunkSize, verticesCount + 2);
 
 			// Only used for debug
 			triangles[verticesCount + 0] = verticesCount + 0;
