@@ -28,6 +28,6 @@ void ComputeNormals(uint3 id : SV_DispatchThreadID)
 	_NormalTexture[id] = -normalize(float3(
         sample(float3(p.x + EPSILON, p.y, p.z)) - sample(float3(p.x - EPSILON, p.y, p.z)),
         sample(float3(p.x, p.y + EPSILON, p.z)) - sample(float3(p.x, p.y - EPSILON, p.z)),
-        sample(float3(p.x, p.y, p.z  + EPSILON)) - sample(float3(p.x, p.y, p.z - EPSILON))
+        sample(float3(p.x, p.y, p.z + EPSILON)) - sample(float3(p.x, p.y, p.z - EPSILON))
     ));
 }

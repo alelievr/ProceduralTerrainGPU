@@ -1,8 +1,10 @@
 ﻿#pragma kernel PerlinNoise3D
 
 #include "CoreRP/ShaderLibrary/Common.hlsl"
+#include "TerrainGenerator.cs.hlsl"
 
-RWTexture3D<half> _NoiseTexture;
+RWTexture3D<half>				_NoiseTexture;
+RWStructuredBuffer<DebugPoint>	_DebugPoints;
 
 cbuffer noiseSettings
 {
@@ -79,7 +81,8 @@ void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 
 	// Return a random number between -1 and 1
 	float f = turbulence(worldNoisePosition) * 2 - 1;
-	_NoiseTexture[id] = lerp(-2, f, float(chunkSize.y - id.y) / chunkSize.y * 2 + 0.5);
+	// _NoiseTexture[id] = lerp(-2, f, float(chunkSize.y - id.y) / chunkSize.y * 2 + chunkPosition.y);
+	_NoiseTexture[id] = f;
 	
 	// Debug Sphere:
 	// _NoiseTexture[id] = length(worldNoisePosition - 0.4) - 0.3;

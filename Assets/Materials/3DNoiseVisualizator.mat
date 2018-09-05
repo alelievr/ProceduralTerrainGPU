@@ -183,7 +183,7 @@ Material:
     - _RefractionMode: 0
     - _ShiverDirectionality: 0.5
     - _ShiverDrag: 0.2
-    - _Slice: 0.144
+    - _Slice: 0
     - _Smoothness: 1
     - _SmoothnessRemapMax: 1
     - _SmoothnessRemapMin: 0

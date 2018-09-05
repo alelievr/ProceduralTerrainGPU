@@ -147,7 +147,6 @@ public class TerrainRenderer : MonoBehaviour
 		{
 			var req = readBackMeshesRequests[i];
 
-			Debug.Log("isDone: " + req.IsDone());
 			if (req.IsDone())
 			{
 				GenerateMesh(req);
@@ -162,7 +161,7 @@ public class TerrainRenderer : MonoBehaviour
 	void GenerateMesh(MeshReadbackRequest req)
 	{
 		Debug.Log("wpos: " + req.worldPosition);
-		var chunk = Instantiate(chunkPrefab, req.worldPosition * 16, Quaternion.identity, parent);
+		var chunk = Instantiate(chunkPrefab, req.worldPosition, Quaternion.identity, parent);
 		MeshFilter mf = chunk.GetComponent<MeshFilter>();
 		Vector3[] vertices = req.verticesRequest.GetData<Vector3>().Take(req.verticesCount).ToArray();
 		Debug.Log("vertices count: " + vertices.Length);
