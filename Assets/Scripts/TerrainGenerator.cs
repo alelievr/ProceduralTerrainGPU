@@ -65,19 +65,6 @@ public class TerrainGenerator : MonoBehaviour
 		public Vector4 direction; // xyz: object normal, w is unused
 	}
 
-	static class TerrainShaderIncludePath
-	{
-		#if UNITY_EDITOR
-		[UnityEditor.ShaderIncludePath]
-		public static string[] GetPaths()
-		{
-			return new string[] {
-				"Assets/Scripts/"
-			};
-		}
-		#endif
-	}
-
 	public void Start ()
 	{
 		renderer = GetComponent< TerrainRenderer >();
