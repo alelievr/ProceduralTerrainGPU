@@ -18,8 +18,9 @@ public class TerrainGenerator : MonoBehaviour
 	public ComputeShader	copyMeshBuffersShader;
 
 	[Space, Header("Chunk settings")]
-	public int				size = 64;
+	public int				terrainChunkSize = 64;
 	public int				chunkLoadSize = 1;
+	public int				resolutionPerVoxel = 1;
 
 	[Space, Header("Noise settings")]
 	public float			seed;
@@ -74,8 +75,9 @@ public class TerrainGenerator : MonoBehaviour
 		computeNormalKernel = FindKernel(normalFromNoiseShader, KernelIds.computeNormalKernel, out computeNormalGroupSize);
 		copyMeshBufferKernel = FindKernel(copyMeshBuffersShader, KernelIds.copyMeshBuffers, out copyMeshBufferGroupSize);
 
-		GenerateBuffers();
-		BindBuffers();
+		// We add 1 so we can generate seamless normals at the cost of chunkSize * chunkSize * 3 cells
+		GenerateBuffers(terrainChunkSize + 1);
+		BindBuffers(chunkPosition, terrainChunkSize + 1);
 
 		foreach (var unused in GenerateStep())
 			;
@@ -88,56 +90,55 @@ public class TerrainGenerator : MonoBehaviour
 		for (int x = -chunkLoadSize; x <= chunkLoadSize; x++)
 			for (int z = -chunkLoadSize; z <= chunkLoadSize; z++)
 			{
-				chunkPosition = new Vector3(x, 0, z);
-				terrain3DNoiseShader.SetVector(KernelIds.chunkPosition, chunkPosition);
-				GenerateBuffers();
-				BindBuffers();
-				GenerateTerrain();
+				Vector3 pos = chunkPosition + new Vector3(x, 0, z);
+				BindBuffers(pos, terrainChunkSize + 1);
+				GenerateTerrain(pos, terrainChunkSize + 1);
 				yield return null;
 			}
 	}
 
-	void GenerateBuffers()
+	void GenerateBuffers(int chunkSize)
 	{
 		// Create the noise texture
-		noiseTexture = new RenderTexture(size, size, 0, GraphicsFormat.R16_SFloat);
+		noiseTexture = new RenderTexture(chunkSize, chunkSize, 0, GraphicsFormat.R16_SFloat);
 		noiseTexture.dimension = TextureDimension.Tex3D;
 		noiseTexture.enableRandomWrite = true;
-		noiseTexture.volumeDepth = size;
+		noiseTexture.volumeDepth = chunkSize;
 		noiseTexture.filterMode = FilterMode.Point;
 		noiseTexture.wrapMode = TextureWrapMode.Clamp;
+		noiseTexture.name = "Noise 3D Texture";
 		noiseTexture.Create();
 		
 		// Create the normal texture
-		// normalTexture = new RenderTexture(size, size, 0, GraphicsFormat.R16G16B16_SNorm);
-		normalTexture = new RenderTexture(size, size, 0);
+		normalTexture = new RenderTexture(chunkSize, chunkSize, 0);
 		normalTexture.format = RenderTextureFormat.ARGBHalf;
 		normalTexture.dimension = TextureDimension.Tex3D;
 		normalTexture.enableRandomWrite = true;
-		normalTexture.volumeDepth = size;
+		normalTexture.volumeDepth = chunkSize;
 		normalTexture.filterMode = FilterMode.Point;
 		normalTexture.wrapMode = TextureWrapMode.Clamp;
+		normalTexture.name = "Normal 3D Texture";
 		normalTexture.Create();
 
 		// Create the computeBuffer that will store vertices and indices for draw procedural
-		verticesBuffer = new ComputeBuffer(size * size * size * 15, sizeof(float) * 3, ComputeBufferType.Counter);
-		// The maximum number of triangles is 5 times the number of volxel (with the marching cubes algorithm)
-		trianglesBuffer = new ComputeBuffer(size * size * size * 5, sizeof(float) * 3, ComputeBufferType.Default);
+		verticesBuffer = new ComputeBuffer(chunkSize * chunkSize * chunkSize * 15 * resolutionPerVoxel, sizeof(float) * 3, ComputeBufferType.Counter);
+		// The maximum number of triangles is 5 times the number of voxel (with the marching cubes algorithm)
+		trianglesBuffer = new ComputeBuffer(chunkSize * chunkSize * chunkSize * 5 * resolutionPerVoxel, sizeof(float) * 3, ComputeBufferType.Default);
 		// A buffer to generate the triangle indicies and keep track of the number of triangles from compute shader
 		verticesCountReadbackBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
 		// The normal buffer, set to the maximum of vertex
-		normalsBuffer = new ComputeBuffer(size * size * size * 15, sizeof(float) * 3, ComputeBufferType.Default);
+		normalsBuffer = new ComputeBuffer(chunkSize * chunkSize * chunkSize * 15 * resolutionPerVoxel, sizeof(float) * 3, ComputeBufferType.Default);
 
 		// Debug buffer to display a list of objects
 		debugPointBuffer = new ComputeBuffer(maxDebugPoints, Marshal.SizeOf(typeof(DebugPoint)), ComputeBufferType.Append);
 	}
 
-	void BindBuffers()
+	void BindBuffers(Vector3 worldPosition, int chunkSize)
 	{
 		// Bind noise kernel parameters:
-		terrain3DNoiseShader.SetTexture(noiseKernel, KernelIds.noiseTextureId, noiseTexture);
-		terrain3DNoiseShader.SetVector(KernelIds.chunkPosition, chunkPosition);
-		terrain3DNoiseShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
+		terrain3DNoiseShader.SetTexture(noiseKernel, KernelIds.noiseTexture, noiseTexture);
+		terrain3DNoiseShader.SetVector(KernelIds.chunkPosition, worldPosition);
+		terrain3DNoiseShader.SetVector(KernelIds.chunkSize, Vector4.one * chunkSize);
 		terrain3DNoiseShader.SetFloat(KernelIds.seed, seed);
 		terrain3DNoiseShader.SetFloat(KernelIds.lacunarity, lacunarity);
 		terrain3DNoiseShader.SetInt(KernelIds.octaves, octaves);
@@ -146,17 +147,20 @@ public class TerrainGenerator : MonoBehaviour
 		terrain3DNoiseShader.SetFloat(KernelIds.frequency, frequency);
 
 		// Bind marching cubes parameters:
-		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.noiseTextureId, noiseTexture);
-		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.normalTextureId, normalTexture);
+		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.noiseTexture, noiseTexture);
+		isoSurfaceShader.SetTexture(marchingCubeKernel, KernelIds.normalTexture, normalTexture);
 		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.verticesId, verticesBuffer);
 		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.trianglesId, trianglesBuffer);
 		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.normalsId, normalsBuffer);
-		isoSurfaceShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
+		isoSurfaceShader.SetBuffer(marchingCubeKernel, KernelIds.debugPoints, debugPointBuffer);
+		isoSurfaceShader.SetVector(KernelIds.chunkSize, Vector4.one * chunkSize);
+		isoSurfaceShader.SetVector(KernelIds.worldPosition, chunkPosition * chunkSize);
+		isoSurfaceShader.SetInt(KernelIds.resolutionPerVoxel, resolutionPerVoxel);
 
 		// Bind normal compute parameters:
-		normalFromNoiseShader.SetTexture(computeNormalKernel, KernelIds.noiseTextureId, noiseTexture);
-		normalFromNoiseShader.SetTexture(computeNormalKernel, KernelIds.normalTextureId, normalTexture);
-		normalFromNoiseShader.SetVector(KernelIds.chunkSizeId, Vector4.one * size);
+		normalFromNoiseShader.SetTexture(computeNormalKernel, KernelIds.noiseTexture, noiseTexture);
+		normalFromNoiseShader.SetTexture(computeNormalKernel, KernelIds.normalTexture, normalTexture);
+		normalFromNoiseShader.SetVector(KernelIds.chunkSize, Vector4.one * chunkSize);
 
 		// Bind buffer copy parameter (only the generated ones, as we don't have )
 		copyMeshBuffersShader.SetBuffer(copyMeshBufferKernel, KernelIds.generatedVertices, verticesBuffer);
@@ -174,7 +178,7 @@ public class TerrainGenerator : MonoBehaviour
 		return kernel;
 	}
 
-	public void GenerateTerrain()
+	public void GenerateTerrain(Vector3 worldPosition, int chunkSize)
 	{
 		Stopwatch sw = new Stopwatch();
 		sw.Start();
@@ -184,13 +188,16 @@ public class TerrainGenerator : MonoBehaviour
 		trianglesBuffer.SetCounterValue(0);
 		
 		// 3D noise generation
-		terrain3DNoiseShader.Dispatch(noiseKernel, size / noiseKernelGroupSize.x, size / noiseKernelGroupSize.y, size / noiseKernelGroupSize.z);
+		terrain3DNoiseShader.Dispatch(noiseKernel, chunkSize / noiseKernelGroupSize.x, chunkSize / noiseKernelGroupSize.y, chunkSize / noiseKernelGroupSize.z);
 
 		// Generate normals
-		normalFromNoiseShader.Dispatch(computeNormalKernel, size / computeNormalGroupSize.x, size / computeNormalGroupSize.y, size / computeNormalGroupSize.z);
+		normalFromNoiseShader.Dispatch(computeNormalKernel, chunkSize / computeNormalGroupSize.x, chunkSize / computeNormalGroupSize.y, chunkSize / computeNormalGroupSize.z);
+
+		// We don't need the extra size anymore so we restore the original chunk size
+		chunkSize -= 1;
 
 		// Isosurface generation
-		isoSurfaceShader.Dispatch(marchingCubeKernel, size / marchingCubeKernelGroupSize.x, size / marchingCubeKernelGroupSize.y, size / marchingCubeKernelGroupSize.z);
+		isoSurfaceShader.Dispatch(marchingCubeKernel, chunkSize * resolutionPerVoxel / marchingCubeKernelGroupSize.x, chunkSize * resolutionPerVoxel / marchingCubeKernelGroupSize.y, chunkSize * resolutionPerVoxel / marchingCubeKernelGroupSize.z);
 
 		ComputeBuffer.CopyCount(verticesBuffer, verticesCountReadbackBuffer, 0);
 
@@ -218,16 +225,21 @@ public class TerrainGenerator : MonoBehaviour
 		// copyMeshBuffersShader.Dispatch(copyMeshBufferKernel, copySize / copyMeshBufferGroupSize.x, 1, 1);
 
 		renderer.ClearChunks();
-		Debug.Log("One chunk generated !");
-		renderer.AddChunkToRender(verticesBuffer, normalsBuffer, chunkPosition * size, verticesCount);
+		renderer.AddChunkToRender(verticesBuffer, normalsBuffer, worldPosition * chunkSize, verticesCount);
 
 		sw.Stop();
-		Debug.Log("3D noise generated in " + sw.Elapsed.TotalMilliseconds + " ms");
 	}
 
 	public void Update()
 	{
-		
+#if UNITY_EDITOR
+		if (UnityEditor.EditorApplication.isPlaying)
+        {
+			renderer.ClearChunks();
+            foreach (var unused in GenerateStep())
+                ;
+		}
+#endif
 	}
 
 	private void OnDestroy()

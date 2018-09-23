@@ -13,7 +13,6 @@ public class TerrainGeneratorEditor : Editor
 	{
 		terrainGenerator = target as TerrainGenerator;
 		terrainStepEnumerator = terrainGenerator.GenerateStep().GetEnumerator();
-		Debug.Log("enum: " +terrainStepEnumerator);
 	}
 
 	public override void OnInspectorGUI()

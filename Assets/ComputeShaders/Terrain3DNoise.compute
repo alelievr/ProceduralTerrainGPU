@@ -71,19 +71,23 @@ float ridge(float h, float offset)
     return h;
 }
 
-[numthreads(8, 8, 8)]
+[numthreads(1, 1, 1)]
 void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 {
-	float3 worldNoisePosition = float3(id - 1.0) * rcp(chunkSize - 2.0) + chunkPosition;
+	float3 chunkUVW = (float3(id) / chunkSize) - 0.5;
+	chunkUVW += rcp(chunkSize * 2.0);
+	float3 worldPosition = chunkUVW + chunkPosition * ((chunkSize - 1) / chunkSize);
+	
+	// worldPosition = float3(id - 1.0) * rcp(chunkSize - 2.0) + chunkPosition;
 
 	// Add seed to position
-	worldNoisePosition = worldNoisePosition * scale + seed * float3(55.485615, -534.6543684, 6.465342);
+	worldPosition = worldPosition * scale + seed * float3(55.485615, -534.6543684, 6.465342);
 
 	// Return a random number between -1 and 1
-	float f = turbulence(worldNoisePosition) * 2 - 1;
-	// _NoiseTexture[id] = lerp(-2, f, float(chunkSize.y - id.y) / chunkSize.y * 2 + chunkPosition.y);
-	_NoiseTexture[id] = f;
+	float f = turbulence(worldPosition) * 2 - 1;
+	_NoiseTexture[id] = lerp(-2, f, float(chunkSize.y - id.y) / chunkSize.y * 2 + chunkPosition.y);
+	// _NoiseTexture[id] = f;
 	
 	// Debug Sphere:
-	// _NoiseTexture[id] = length(worldNoisePosition - 0.4) - 0.3;
+	// _NoiseTexture[id] = length(worldPosition - 0.4) - 0.3;
 }

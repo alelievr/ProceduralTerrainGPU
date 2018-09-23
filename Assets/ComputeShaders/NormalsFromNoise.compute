@@ -4,30 +4,27 @@
 #include "CoreRP/ShaderLibrary/Common.hlsl"
 
 Texture3D<half> _NoiseTexture;
-SamplerState s_trilinear_clamp_sampler;
+SamplerState s_linear_clamp_sampler;
 
 RWTexture3D<half3> _NormalTexture;
 float3 chunkSize;
 
 float sample(float3 pos)
 {
-	return SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, pos, 0);
+	// return LOAD_TEXTURE3D(_NoiseTexture, pos);
+	return SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_linear_clamp_sampler, pos / chunkSize, 0);
 }
 
-[numthreads(8, 8, 8)]
+[numthreads(1, 1, 1)]
 void ComputeNormals(uint3 id : SV_DispatchThreadID)
 {
-    // do not compute normals on the boreder, they will be false
-    if (any((id % (chunkSize - 1)) == 0))
-        return ;
+	float3 p = float3(id) + 0.5;
 
-	float3 p = float3(id) / chunkSize;
-
-	const float EPSILON = rcp(chunkSize.x);
+	const float2 epsylon = float2(0.5, 0);
 
 	_NormalTexture[id] = -normalize(float3(
-        sample(float3(p.x + EPSILON, p.y, p.z)) - sample(float3(p.x - EPSILON, p.y, p.z)),
-        sample(float3(p.x, p.y + EPSILON, p.z)) - sample(float3(p.x, p.y - EPSILON, p.z)),
-        sample(float3(p.x, p.y, p.z + EPSILON)) - sample(float3(p.x, p.y, p.z - EPSILON))
+        sample(p + epsylon.xyy) - sample(p - epsylon.xyy),
+        sample(p + epsylon.yxy) - sample(p - epsylon.yxy),
+        sample(p + epsylon.yyx) - sample(p - epsylon.yyx)
     ));
 }
