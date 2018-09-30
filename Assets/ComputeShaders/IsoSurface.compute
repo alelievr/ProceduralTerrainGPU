@@ -90,7 +90,7 @@ void CreateVertex(float3 position, float3 centre, float3 size, int index)
 	// normals[index] = LOAD_TEXTURE3D(_NormalTexture, position + 0.5);
 }
 
-[numthreads(1, 1, 1)]
+[numthreads(8, 8, 8)]
 void MarchingCubes(uint3 id : SV_DispatchThreadID)
 {
 	float3 voxelUVW = float3(id) / chunkSize / resolutionPerVoxel;
@@ -121,7 +121,8 @@ void MarchingCubes(uint3 id : SV_DispatchThreadID)
 	int edgeFlags = GetCubeEdgeFlags(flagIndex);
 
 	// no connections, return
-	if (edgeFlags == 0) return;
+	if (edgeFlags == 0)
+		return;
 
 	//Find the point of intersection of the surface with each edge
 	for (i = 0; i < 12; i++)

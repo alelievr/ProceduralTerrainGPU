@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -11,6 +12,8 @@ using Debug = UnityEngine.Debug;
 [ExecuteInEditMode]
 public class TerrainGenerator : MonoBehaviour
 {
+	public const int MinDispatchSize = 8;
+
 	[Header("Compute shaders")]
 	public ComputeShader	terrain3DNoiseShader;
 	public ComputeShader	isoSurfaceShader;
@@ -18,7 +21,7 @@ public class TerrainGenerator : MonoBehaviour
 	public ComputeShader	copyMeshBuffersShader;
 
 	[Space, Header("Chunk settings")]
-	public int				terrainChunkSize = 64;
+	public int				terrainChunkSize = 63;
 	public int				chunkLoadSize = 1;
 	public int				resolutionPerVoxel = 1;
 
@@ -87,7 +90,8 @@ public class TerrainGenerator : MonoBehaviour
 	{
 		renderer.ClearChunks();
 
-		for (int x = -chunkLoadSize; x <= chunkLoadSize; x++)
+		int x = 0;
+		// for (int x = -chunkLoadSize; x <= chunkLoadSize; x++)
 			for (int z = -chunkLoadSize; z <= chunkLoadSize; z++)
 			{
 				Vector3 pos = chunkPosition + new Vector3(x, 0, z);
@@ -178,28 +182,52 @@ public class TerrainGenerator : MonoBehaviour
 		return kernel;
 	}
 
+	public void CheckNormals()
+	{
+		var data1 = chunkNormals.First();
+		if (chunkNormals.ContainsKey(data1.Key + Vector3.forward))
+		{
+			Debug.Log("Checking normals");
+			var data2 = chunkNormals[data1.Key + Vector3.forward];
+			for (int i = 0; i < terrainChunkSize; i++)
+				for (int j = 0; j < terrainChunkSize; j++)
+				{
+					int index1 = terrainChunkSize - 1 + i * terrainChunkSize + j * terrainChunkSize * terrainChunkSize;
+					int index2 = i * terrainChunkSize + j * terrainChunkSize * terrainChunkSize;
+					if (data1.Value[index1] != data2[index2])
+					{
+						Debug.Log("Normal generation error: " + data1.Value[index1] + " vs " + data2[index2]);
+					}
+				}
+		}
+	}
+
+	public Dictionary< Vector3, Vector3[] > chunkNormals = new Dictionary<Vector3, Vector3[]>();
 	public void GenerateTerrain(Vector3 worldPosition, int chunkSize)
 	{
 		Stopwatch sw = new Stopwatch();
+		int dispatchSize = (int)Mathf.Ceil((float)chunkSize / (float)MinDispatchSize);
 		sw.Start();
 
 		verticesBuffer.SetCounterValue(0);
-		normalsBuffer.SetCounterValue(0);
-		trianglesBuffer.SetCounterValue(0);
 		
 		// 3D noise generation
-		terrain3DNoiseShader.Dispatch(noiseKernel, chunkSize / noiseKernelGroupSize.x, chunkSize / noiseKernelGroupSize.y, chunkSize / noiseKernelGroupSize.z);
+		terrain3DNoiseShader.Dispatch(noiseKernel, dispatchSize, dispatchSize, dispatchSize);
 
 		// Generate normals
-		normalFromNoiseShader.Dispatch(computeNormalKernel, chunkSize / computeNormalGroupSize.x, chunkSize / computeNormalGroupSize.y, chunkSize / computeNormalGroupSize.z);
-
+		normalFromNoiseShader.Dispatch(computeNormalKernel, dispatchSize, dispatchSize, dispatchSize);
+		
 		// We don't need the extra size anymore so we restore the original chunk size
-		chunkSize -= 1;
+		dispatchSize = (int)Mathf.Ceil((float)(chunkSize - 1) / (float)MinDispatchSize);
 
 		// Isosurface generation
-		isoSurfaceShader.Dispatch(marchingCubeKernel, chunkSize * resolutionPerVoxel / marchingCubeKernelGroupSize.x, chunkSize * resolutionPerVoxel / marchingCubeKernelGroupSize.y, chunkSize * resolutionPerVoxel / marchingCubeKernelGroupSize.z);
+		isoSurfaceShader.Dispatch(marchingCubeKernel, dispatchSize * resolutionPerVoxel, dispatchSize * resolutionPerVoxel, dispatchSize * resolutionPerVoxel);
 
 		ComputeBuffer.CopyCount(verticesBuffer, verticesCountReadbackBuffer, 0);
+		
+		// Vector3[] n = new Vector3[chunkSize * chunkSize * chunkSize];
+		// normalsBuffer.GetData(n);
+		// chunkNormals[worldPosition] = n;
 
 		// Get the vertices count back to the cpu
 		int[] verticesCountBuffer = new int[1];

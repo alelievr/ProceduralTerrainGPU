@@ -15,7 +15,7 @@ float sample(float3 pos)
 	return SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_linear_clamp_sampler, pos / chunkSize, 0);
 }
 
-[numthreads(1, 1, 1)]
+[numthreads(8, 8, 8)]
 void ComputeNormals(uint3 id : SV_DispatchThreadID)
 {
 	float3 p = float3(id) + 0.5;
