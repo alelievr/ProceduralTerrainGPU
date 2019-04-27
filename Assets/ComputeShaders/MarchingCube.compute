@@ -2,9 +2,9 @@
 
 #pragma kernel MarchingCubes
 
-#include "CoreRP/ShaderLibrary/Common.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 #include "MarchingCubeConstants.hlsl"
-#include "TerrainGenerator.cs.hlsl"
+#include "Assets/Scripts/TerrainGenerator.cs.hlsl"
 
 Texture3D<half> _NoiseTexture;
 Texture3D<half3> _NormalTexture;
@@ -49,7 +49,7 @@ float3 ComputeNormal(float3 uvw)
 		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw + step.wwy, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw - step.wwy, 0),
 		SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw + step.wzw, 0) - SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw - step.wzw, 0)
 	);
-	
+
 	return normalize(-gradient);
 }
 
@@ -94,7 +94,7 @@ void CreateVertex(float3 position, float3 centre, float3 size, int index)
 void MarchingCubes(uint3 id : SV_DispatchThreadID)
 {
 	float3 voxelUVW = float3(id) / chunkSize / resolutionPerVoxel;
-	
+
 	int index = debugPoints.IncrementCounter();
 
 	// Sample at the center of the pixel
@@ -102,7 +102,7 @@ void MarchingCubes(uint3 id : SV_DispatchThreadID)
 
 	float3 pos = float3(id) / resolutionPerVoxel + rcp(chunkSize * 2.0);
 	float3 centre = float3(chunkSize.x, 0, chunkSize.z) / 2.0;
-	
+
 	debugPoints[index].position = float4(pos + worldPosition, SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, voxelUVW, 0));
 	debugPoints[index].direction = float4(SAMPLE_TEXTURE3D_LOD(_NormalTexture, s_trilinear_clamp_sampler, voxelUVW, 0), 0);
 

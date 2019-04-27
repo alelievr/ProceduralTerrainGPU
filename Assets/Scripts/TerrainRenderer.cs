@@ -71,11 +71,11 @@ public class TerrainRenderer : MonoBehaviour
 			Cleanup();
 			return;
 		}
-		
+
 		var cam = Camera.current;
 		if (!cam)
 			return;
-		
+
 		CommandBuffer cmd;
 
 		if (!commandBuffers.TryGetValue(cam, out cmd))
@@ -85,7 +85,7 @@ public class TerrainRenderer : MonoBehaviour
 		}
 
 		cmd.Clear();
-		
+
 		foreach (var chunk in chunks)
 		{
 			Debug.Log("draw buffer !");
@@ -118,7 +118,7 @@ public class TerrainRenderer : MonoBehaviour
 			normalsRequest.Update();
 		}
 	}
-	
+
 	List<MeshReadbackRequest>	readBackMeshesRequests = new List<MeshReadbackRequest>();
 	List<GameObject>			chunks = new List<GameObject>();
 

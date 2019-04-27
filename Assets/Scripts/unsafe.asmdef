@@ -1,11 +1,15 @@
 {
     "name": "unsafe",
     "references": [
-        "com.unity.render-pipelines.core.Runtime",
-        "com.unity.render-pipelines.high-definition.Runtime"
+        "GUID:457756d89b35d2941b3e7b37b4ece6f1"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [],
     "excludePlatforms": [],
-    "allowUnsafeCode": true
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": []
 }

@@ -1,7 +1,7 @@
 ﻿#pragma kernel PerlinNoise3D
 
-#include "CoreRP/ShaderLibrary/Common.hlsl"
-#include "TerrainGenerator.cs.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+#include "Assets/Scripts/TerrainGenerator.cs.hlsl"
 
 RWTexture3D<half>				_NoiseTexture;
 RWStructuredBuffer<DebugPoint>	_DebugPoints;
@@ -54,7 +54,7 @@ float turbulence(float3 p)
 {
 	float sum = 0;
 	float freq = frequency, amp = 1.0;
-	for(int i = 0; i < octaves; i++) 
+	for(int i = 0; i < octaves; i++)
 	{
 		sum += abs(noise(p*freq))*amp;
 		freq *= lacunarity;
@@ -77,7 +77,7 @@ void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 	float3 chunkUVW = (float3(id) / chunkSize) - 0.5;
 	chunkUVW += rcp(chunkSize * 2.0);
 	float3 worldPosition = chunkUVW + chunkPosition * ((chunkSize - 1) / chunkSize);
-	
+
 	// worldPosition = float3(id - 1.0) * rcp(chunkSize - 2.0) + chunkPosition;
 
 	// Add seed to position
@@ -88,11 +88,11 @@ void PerlinNoise3D(uint3 id : SV_DispatchThreadID)
 	// _NoiseTexture[id] = lerp(-2, f, float(chunkSize.y - id.y) / chunkSize.y * 2 + chunkPosition.y);
 
 	// _NoiseTexture[id] = f;
-	
+
 	float scale = 4;
 	float height = 0.15;
 	_NoiseTexture[id] = sin(worldPosition.x * scale) * height + cos(worldPosition.z * scale) * height - worldPosition.y;
-	
+
 	// Debug Sphere:
 	// _NoiseTexture[id] = length(worldPosition - 0.4) - 0.3;
 }

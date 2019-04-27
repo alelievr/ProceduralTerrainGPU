@@ -1,0 +1,40 @@
+﻿#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+#include "MarchingCubeConstants.hlsl"
+#include "Assets/Scripts/TerrainGenerator.cs.hlsl"
+#pragma kernel VoxelIsoSurface
+
+Texture3D<half> _NoiseTexture;
+Texture3D<half3> _NormalTexture;
+SamplerState s_trilinear_clamp_sampler;
+float3 chunkSize;
+float3 worldPosition;
+uint resolutionPerVoxel;
+
+RWStructuredBuffer<half3>		vertices;
+// RWStructuredBuffer<int>			triangles;
+// RWStructuredBuffer<DebugPoint>	debugPoints;
+
+
+float SampleNoise(float3 uvw)
+{
+	return SAMPLE_TEXTURE3D_LOD(_NoiseTexture, s_trilinear_clamp_sampler, uvw, 0);
+}
+
+void CreateVertex(float3 position, int index)
+{
+	vertices[index] = position;
+	// normals[index] = LOAD_TEXTURE3D(_NormalTexture, position + 0.5);
+}
+
+[numthreads(8,8,8)]
+void VoxelIsoSurface (uint3 id : SV_DispatchThreadID)
+{
+    int index = vertices.IncrementCounter() * 6;
+
+    CreateVertex(float3(0, 0, 0), index + 0);
+    CreateVertex(float3(1, 0, 0), index + 1);
+    CreateVertex(float3(1, 1, 0), index + 2);
+    CreateVertex(float3(1, 1, 0), index + 3);
+    CreateVertex(float3(0, 1, 0), index + 4);
+    CreateVertex(float3(0, 0, 0), index + 5);
+}
